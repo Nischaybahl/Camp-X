@@ -61,43 +61,60 @@ export default function Login() {
         setIsLoading(true);
 
         try {
+            // Try backend API first
+            const response = await fetch('https://camp-x.onrender.com/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: email.toLowerCase(), password })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                localStorage.setItem('campx_current_user', JSON.stringify(data.user));
+                setSuccessMessage('Login successful! Welcome back.');
+                setTimeout(() => window.location.href = '/', 1000);
+                return;
+            } else {
+                const errData = await response.json().catch(() => ({}));
+                // fallback: try localStorage
+                const users = JSON.parse(localStorage.getItem('campx_users') || '[]');
+                const user = users.find((u: { email: string; password: string }) =>
+                    u.email === email.toLowerCase() && u.password === password
+                );
+                if (!user) {
+                    setError(errData.error || 'Invalid email or password.');
+                    setIsLoading(false);
+                    return;
+                }
+                localStorage.setItem('campx_current_user', JSON.stringify(user));
+                setSuccessMessage('Login successful! Welcome.');
+                setTimeout(() => window.location.href = '/', 1000);
+                return;
+            }
+        } catch {
+            // Backend unavailable – fall back to localStorage
+            const users = JSON.parse(localStorage.getItem('campx_users') || '[]');
+
+            // Admin hardcoded check
             if (email.toLowerCase() === 'en23cs301682@medicaps.ac.in' && password === 'Admin07') {
-                localStorage.setItem('campx_current_user', JSON.stringify({
-                    email: 'en23cs301682@medicaps.ac.in',
-                    name: 'Admin User',
-                    verified: true,
-                    isAdmin: true
-                }));
+                const adminUser = { email: 'en23cs301682@medicaps.ac.in', name: 'Admin User', verified: true, isAdmin: true };
+                localStorage.setItem('campx_current_user', JSON.stringify(adminUser));
                 setSuccessMessage('Admin Login successful!');
                 setTimeout(() => window.location.href = '/', 1000);
                 return;
             }
 
-            const users = JSON.parse(localStorage.getItem('campx_users') || '[]');
             const user = users.find((u: { email: string; password: string }) =>
                 u.email === email.toLowerCase() && u.password === password
             );
-
             if (!user) {
                 setError('Invalid email or password.');
                 setIsLoading(false);
                 return;
             }
-
-            // Auto-verify legacy unverified accounts, and log everyone in directly
-            if (!user.verified) {
-                const updatedUsers = users.map((u: any) => u.email === user.email ? { ...u, verified: true } : u);
-                localStorage.setItem('campx_users', JSON.stringify(updatedUsers));
-                user.verified = true;
-            }
-
             localStorage.setItem('campx_current_user', JSON.stringify(user));
-            setSuccessMessage('Login successful! Welcome.');
-            setTimeout(() => {
-                window.location.href = '/';
-            }, 1000);
-        } catch {
-            setError('Something went wrong. Please try again.');
+            setSuccessMessage('Login successful!');
+            setTimeout(() => window.location.href = '/', 1000);
         } finally {
             setIsLoading(false);
         }

@@ -68,31 +68,40 @@ export default function SignUp() {
         setIsSubmitting(true);
 
         try {
-            // Save user to localStorage
-            const users = JSON.parse(localStorage.getItem('campx_users') || '[]');
-            const existingUser = users.find((u: { email: string }) => u.email === email.toLowerCase());
-            if (existingUser) {
-                setSubmitError('An account with this email already exists.');
-                setIsSubmitting(false);
-                return;
-            }
-
-            users.push({
-                name,
-                email: email.toLowerCase(),
-                password,
-                verified: true,
-                createdAt: new Date().toISOString(),
+            // Try backend API first
+            const response = await fetch('https://camp-x.onrender.com/api/auth/signup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, email: email.toLowerCase(), password })
             });
-            localStorage.setItem('campx_users', JSON.stringify(users));
 
-            // Navigate to login
-            navigate('/login', { state: { registered: true, email: email.toLowerCase() } });
+            if (response.ok) {
+                navigate('/login', { state: { registered: true, email: email.toLowerCase() } });
+                return;
+            } else {
+                const errData = await response.json().catch(() => ({}));
+                if (errData.error?.includes('already exists')) {
+                    setSubmitError('An account with this email already exists.');
+                    return;
+                }
+                // If backend failed for another reason, fall through to localStorage
+            }
         } catch {
-            setSubmitError('Something went wrong. Please try again.');
-        } finally {
-            setIsSubmitting(false);
+            // Backend unavailable – save to localStorage as fallback
         }
+
+        // localStorage fallback
+        const users = JSON.parse(localStorage.getItem('campx_users') || '[]');
+        const existingUser = users.find((u: { email: string }) => u.email === email.toLowerCase());
+        if (existingUser) {
+            setSubmitError('An account with this email already exists.');
+            setIsSubmitting(false);
+            return;
+        }
+        users.push({ name, email: email.toLowerCase(), password, verified: true, createdAt: new Date().toISOString() });
+        localStorage.setItem('campx_users', JSON.stringify(users));
+        navigate('/login', { state: { registered: true, email: email.toLowerCase() } });
+        setIsSubmitting(false);
     };
 
     const inputStyle = {
