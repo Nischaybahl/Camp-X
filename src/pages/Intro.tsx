@@ -47,7 +47,7 @@ export default function Intro() {
     useEffect(() => {
         const loadImages = async () => {
             const imagePromises = Array.from({ length: TOTAL_FRAMES }, (_, i) => {
-                return new Promise<HTMLImageElement>((resolve, reject) => {
+                return new Promise<HTMLImageElement>((resolve) => {
                     const img = new Image();
                     // Maps i=0 -> frame_00_delay-0.1s.jpg, i=67 -> frame_67_delay-0.1s.jpg
                     const frameNumber = String(i).padStart(2, '0');
@@ -57,7 +57,11 @@ export default function Intro() {
                         setLoadProgress((prev) => prev + (100 / TOTAL_FRAMES));
                         resolve(img);
                     };
-                    img.onerror = reject;
+                    img.onerror = () => {
+                        console.error(`Failed to load frame: ${img.src}`);
+                        setLoadProgress((prev) => prev + (100 / TOTAL_FRAMES));
+                        resolve(img); // Still resolve to keep loading moving
+                    };
                 });
             });
 
