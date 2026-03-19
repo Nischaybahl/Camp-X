@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Plus, Trash2, Edit3, CheckCircle, Circle, X, AlertTriangle } from 'lucide-react';
+import { fetchItems, createItem, updateItem } from '../utils/apiClient';
 
-interface Complaint {
+export interface Complaint {
     id: string;
     name: string;
     category: string;
@@ -29,10 +30,8 @@ const glassCard: React.CSSProperties = {
 };
 
 export default function CampusComplaint() {
-    const [complaints, setComplaints] = useState<Complaint[]>(() => {
-        const saved = localStorage.getItem('campusComplaints');
-        return saved ? JSON.parse(saved) : [];
-    });
+
+    const [complaints, setComplaints] = useState<Complaint[]>([]);
     const [showForm, setShowForm] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [name, setName] = useState('');
@@ -42,9 +41,12 @@ export default function CampusComplaint() {
 
     const currentUser = JSON.parse(localStorage.getItem('campx_current_user') || '{}');
 
+    // Fetch from backend
     useEffect(() => {
-        localStorage.setItem('campusComplaints', JSON.stringify(complaints));
-    }, [complaints]);
+        fetchItems<Complaint>('complaint', 'campusComplaints').then(data => {
+            setComplaints(data);
+        });
+    }, []);
 
     const resetForm = () => {
         setName(''); setCategory('infra'); setDescription('');
@@ -54,9 +56,12 @@ export default function CampusComplaint() {
     const handleSubmit = () => {
         if (!name.trim() || !description.trim()) return;
         if (editingId) {
-            setComplaints(prev => prev.map(c =>
-                c.id === editingId ? { ...c, name, category, description } : c
-            ));
+            const updated = complaints.find(c => c.id === editingId);
+            if (updated) {
+                const newC = { ...updated, name, category, description };
+                setComplaints(prev => prev.map(c => c.id === editingId ? newC : c));
+                updateItem('complaint', editingId, newC, 'campusComplaints', complaints);
+            }
         } else {
             const newComplaint: Complaint = {
                 id: Date.now().toString(),
@@ -66,6 +71,7 @@ export default function CampusComplaint() {
                 authorEmail: currentUser.email,
             };
             setComplaints(prev => [newComplaint, ...prev]);
+            createItem('complaint', newComplaint, 'campusComplaints', complaints);
         }
         resetForm();
     };
@@ -77,12 +83,18 @@ export default function CampusComplaint() {
 
     const handleDelete = (id: string) => {
         setComplaints(prev => prev.filter(c => c.id !== id));
+        fetch(`http://localhost:5000/api/items/complaint/${id}`, { method: 'DELETE' }).catch(() => {
+            const updated = complaints.filter(c => c.id !== id);
+            localStorage.setItem('campusComplaints', JSON.stringify(updated));
+        });
     };
 
     const toggleComplete = (id: string) => {
-        setComplaints(prev => prev.map(c =>
-            c.id === id ? { ...c, completed: !c.completed } : c
-        ));
+        const c = complaints.find(comp => comp.id === id);
+        if (!c) return;
+        const newC = { ...c, completed: !c.completed };
+        setComplaints(prev => prev.map(comp => comp.id === id ? newC : comp));
+        updateItem('complaint', id, newC, 'campusComplaints', complaints);
     };
 
     const filtered = complaints.filter(c => {
