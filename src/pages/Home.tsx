@@ -278,6 +278,30 @@ export default function Home() {
         }
     }, []);
 
+    // Touch handlers for mobile
+    const handleTouchStart = useCallback((e: React.TouchEvent) => {
+        if (!carouselRef.current) return;
+        setIsDragging(true);
+        setDragStart({ x: e.touches[0].pageX, scrollLeft: carouselRef.current.scrollLeft });
+    }, []);
+
+    const handleTouchMove = useCallback((e: React.TouchEvent) => {
+        if (!isDragging || !carouselRef.current) return;
+        const walk = (e.touches[0].pageX - dragStart.x) * 1.5;
+        carouselRef.current.scrollLeft = dragStart.scrollLeft - walk;
+    }, [isDragging, dragStart]);
+
+    const handleTouchEnd = useCallback(() => {
+        setIsDragging(false);
+    }, []);
+
+    const handleSliderChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!carouselRef.current) return;
+        const val = parseFloat(e.target.value) / 100;
+        const maxScroll = carouselRef.current.scrollWidth - carouselRef.current.clientWidth;
+        carouselRef.current.scrollLeft = val * maxScroll;
+    }, []);
+
     const scrollCarousel = useCallback((direction: 'left' | 'right') => {
         if (!carouselRef.current) return;
         const scrollAmount = 320;
@@ -463,6 +487,9 @@ export default function Home() {
                             onMouseMove={handleDragMove}
                             onMouseUp={handleDragEnd}
                             onMouseLeave={handleDragEnd}
+                            onTouchStart={handleTouchStart}
+                            onTouchMove={handleTouchMove}
+                            onTouchEnd={handleTouchEnd}
                             style={{
                                 display: 'flex',
                                 gap: '1.5rem',
@@ -502,37 +529,41 @@ export default function Home() {
                             ))}
                         </div>
 
-                        {/* Scroll Progress Bar */}
+                        {/* Interactive Scroll Slider */}
                         <div style={{
                             display: 'flex',
                             justifyContent: 'center',
                             alignItems: 'center',
                             gap: '1rem',
                             marginTop: '2rem',
+                            padding: '0 1rem',
                         }}>
-                            <div style={{
-                                width: '200px',
-                                height: '3px',
-                                background: 'rgba(255,255,255,0.1)',
-                                borderRadius: '2px',
-                                overflow: 'hidden',
-                            }}>
-                                <div style={{
-                                    width: `${Math.max(20, carouselScrollProgress * 100)}%`,
-                                    height: '100%',
-                                    background: 'linear-gradient(90deg, #ccff00, #88cc00)',
-                                    borderRadius: '2px',
-                                    transition: 'width 0.15s ease-out',
-                                    boxShadow: '0 0 8px rgba(204,255,0,0.4)',
-                                }} />
-                            </div>
+                            <input
+                                type="range"
+                                min="0"
+                                max="100"
+                                value={Math.round(carouselScrollProgress * 100)}
+                                onChange={handleSliderChange}
+                                style={{
+                                    width: '260px',
+                                    maxWidth: '60vw',
+                                    height: '6px',
+                                    appearance: 'none',
+                                    WebkitAppearance: 'none',
+                                    background: `linear-gradient(to right, #ccff00 ${carouselScrollProgress * 100}%, rgba(255,255,255,0.1) ${carouselScrollProgress * 100}%)`,
+                                    borderRadius: '3px',
+                                    outline: 'none',
+                                    cursor: 'pointer',
+                                }}
+                            />
                             <span style={{
                                 color: 'rgba(255,255,255,0.4)',
-                                fontSize: '0.8rem',
+                                fontSize: '0.75rem',
                                 fontFamily: "'Inter', sans-serif",
                                 letterSpacing: '1px',
+                                whiteSpace: 'nowrap',
                             }}>
-                                DRAG OR SCROLL →
+                                SWIPE OR DRAG →
                             </span>
                         </div>
                     </div>
