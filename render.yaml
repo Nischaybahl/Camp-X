@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: campx-api
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: MONGODB_URI
+        value: mongodb+srv://en23cs301682_db_user:Admin07@cluster0.4hyglss.mongodb.net/campx?retryWrites=true&w=majority&appName=Cluster0
+      - key: PORT
+        value: 5000
+      - key: SUPPORT_EMAIL
+        value: nischay.bahl.11681@gmail.com
