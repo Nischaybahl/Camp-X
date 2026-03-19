@@ -4,7 +4,6 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 
 // Import card images
 import campusComplaintImg from '../assets/cards/campus_complaint.png';
-import lostFoundImg from '../assets/cards/lost_found.png';
 import digitalNotesImg from '../assets/cards/digital_notes.png';
 import attendanceImg from '../assets/cards/attendance.png';
 import pyqImg from '../assets/cards/pyq.png';
@@ -297,7 +296,6 @@ export default function Home() {
 
     const features = [
         { image: campusComplaintImg, title: "Campus Complaint", desc: "File and track issues directly with the college administration.", link: "/campus-complaint" },
-        { image: lostFoundImg, title: "Lost & Found", desc: "A community board to report lost items or return found ones.", link: "/lost-and-found" },
         { image: digitalNotesImg, title: "Digital Notes", desc: "Access class materials, lecture slides, and study guides instantly.", link: "/notes" },
         { image: attendanceImg, title: "Attendance Tracking", desc: "Monitor your presence visually and stay above the required threshold.", link: "/attendance" },
         { image: pyqImg, title: "PYQ Archives", desc: "Filter and download past exam papers to boost your preparation.", link: "/pyq" },

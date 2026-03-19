@@ -7,7 +7,6 @@ import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate } f
 import Home from './pages/Home';
 import Intro from './pages/Intro';
 import CampusComplaint from './pages/CampusComplaint';
-import LostAndFound from './pages/LostAndFound';
 import Notes from './pages/Notes';
 import Attendance from './pages/Attendance';
 import PYQ from './pages/PYQ';
@@ -71,7 +70,6 @@ function Navigation({ isLightMode, toggleTheme }: NavigationProps) {
         <Link to="/pyq" className="nav-link" style={{ color: path === '/pyq' ? 'var(--primary)' : 'var(--secondary)' }}>PYQ</Link>
         <Link to="/academia-central" className="nav-link" style={{ color: path === '/academia-central' ? 'var(--primary)' : 'var(--secondary)' }}>Academia Central</Link>
         <Link to="/college-updates" className="nav-link" style={{ color: path === '/college-updates' ? 'var(--primary)' : 'var(--secondary)' }}>College Updates</Link>
-        <Link to="/lost-and-found" className="nav-link" style={{ color: path === '/lost-and-found' ? 'var(--primary)' : 'var(--secondary)' }}>TraceIT</Link>
         {isAdmin && (
           <>
             <Link to="/admin/queries" className="nav-link" style={{ color: path === '/admin/queries' ? '#ff6b6b' : 'var(--secondary)', fontWeight: 'bold' }}>Support Queries</Link>
@@ -205,7 +203,6 @@ function MainApp() {
           <Route path="/" element={<Intro />} />
           <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
           <Route path="/campus-complaint" element={<ProtectedRoute><CampusComplaint /></ProtectedRoute>} />
-          <Route path="/lost-and-found" element={<ProtectedRoute><LostAndFound /></ProtectedRoute>} />
           <Route path="/notes" element={<ProtectedRoute><Notes /></ProtectedRoute>} />
           <Route path="/attendance" element={<ProtectedRoute><Attendance /></ProtectedRoute>} />
           <Route path="/pyq" element={<ProtectedRoute><PYQ /></ProtectedRoute>} />
