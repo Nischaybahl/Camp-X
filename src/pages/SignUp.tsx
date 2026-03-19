@@ -81,7 +81,7 @@ export default function SignUp() {
                 name,
                 email: email.toLowerCase(),
                 password,
-                verified: false,
+                verified: true,
                 createdAt: new Date().toISOString(),
             });
             localStorage.setItem('campx_users', JSON.stringify(users));

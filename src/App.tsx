@@ -1,4 +1,4 @@
-import { Compass, Moon, Sun } from 'lucide-react';
+import { Compass, Moon, Sun, Menu, X } from 'lucide-react';
 import Spline from '@splinetool/react-spline';
 import type { Application } from '@splinetool/runtime';
 import { useRef, useEffect, useState } from 'react';
@@ -35,11 +35,13 @@ interface NavigationProps {
 function Navigation({ isLightMode, toggleTheme }: NavigationProps) {
   const location = useLocation();
   const path = location.pathname;
-
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
+    setIsMobileMenuOpen(false); // Close menu on navigation
+
     const user = JSON.parse(localStorage.getItem('campx_current_user') || 'null');
     setIsLoggedIn(!!user);
     if (user && user.isAdmin) setIsAdmin(true);
@@ -60,7 +62,7 @@ function Navigation({ isLightMode, toggleTheme }: NavigationProps) {
         <span>CampX<span style={{ color: 'var(--accent)' }}>.</span></span>
       </Link>
 
-      <div className="nav-links">
+      <div className={`nav-links ${isMobileMenuOpen ? 'mobile-active' : ''}`}>
         <Link to="/home" className="nav-link" style={{ color: path === '/home' ? 'var(--primary)' : 'var(--secondary)' }}>Home</Link>
         <Link to="/campus-complaint" className="nav-link" style={{ color: path === '/campus-complaint' ? 'var(--primary)' : 'var(--secondary)' }}>Campus Complaint</Link>
 
@@ -116,6 +118,17 @@ function Navigation({ isLightMode, toggleTheme }: NavigationProps) {
             </Link>
           </>
         )}
+
+        {/* Mobile menu toggle button */}
+        <button
+            className="mobile-menu-btn"
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            style={{
+                display: 'flex', background: 'transparent', border: '1px solid var(--glass-border)', color: 'var(--primary)', cursor: 'pointer', padding: '0.4rem', borderRadius: '50%', marginLeft: '0.5rem'
+            }}
+        >
+            {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+        </button>
       </div>
     </nav>
   );

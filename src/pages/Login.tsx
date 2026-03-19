@@ -84,31 +84,18 @@ export default function Login() {
                 return;
             }
 
-            // Check if first-time login (not yet verified)
+            // Auto-verify legacy unverified accounts, and log everyone in directly
             if (!user.verified) {
-                const otp = generateOTP();
-                storeOTP(email, otp);
-                const sent = await sendOTPEmail(email, otp);
-
-                if (sent) {
-                    setSuccessMessage(`OTP sent to ${email}. Check your inbox!`);
-                } else {
-                    setSuccessMessage(`OTP generated! Check your browser console for the code (dev mode).`);
-                }
-
-                setStep('otp');
-                setOtpTimer(300);
-                setCanResend(false);
-                setOtpValues(['', '', '', '', '', '']);
-                setTimeout(() => inputRefs.current[0]?.focus(), 100);
-            } else {
-                // Already verified — direct login
-                localStorage.setItem('campx_current_user', JSON.stringify(user));
-                setSuccessMessage('Login successful! Welcome back.');
-                setTimeout(() => {
-                    window.location.href = '/';
-                }, 1000);
+                const updatedUsers = users.map((u: any) => u.email === user.email ? { ...u, verified: true } : u);
+                localStorage.setItem('campx_users', JSON.stringify(updatedUsers));
+                user.verified = true;
             }
+
+            localStorage.setItem('campx_current_user', JSON.stringify(user));
+            setSuccessMessage('Login successful! Welcome.');
+            setTimeout(() => {
+                window.location.href = '/';
+            }, 1000);
         } catch {
             setError('Something went wrong. Please try again.');
         } finally {
