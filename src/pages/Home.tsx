@@ -573,9 +573,9 @@ export default function Home() {
                                 upgrade your life.<br />bit by bit.
                             </h2>
                         </div>
-                        <a href="https://camp-x-app.vercel.app" target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', border: '1px solid rgba(255,255,255,0.2)', padding: '1rem 1.5rem', borderRadius: '4px', background: 'rgba(0,0,0,0.5)', textDecoration: 'none' }}>
+                        <a href="https://camp-x-nischaybahls-projects.vercel.app" target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', border: '1px solid rgba(255,255,255,0.2)', padding: '1rem 1.5rem', borderRadius: '4px', background: 'rgba(0,0,0,0.5)', textDecoration: 'none' }}>
                             <img
-                                src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=https://camp-x-app.vercel.app&bgcolor=ffffff&color=000000"
+                                src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=https://camp-x-nischaybahls-projects.vercel.app&bgcolor=ffffff&color=000000"
                                 alt="CampX QR Code"
                                 style={{ width: '60px', height: '60px', borderRadius: '4px' }}
                             />

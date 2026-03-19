@@ -65,8 +65,14 @@ export default function Intro() {
                 });
             });
 
-            const loadedImages = await Promise.all(imagePromises);
-            setImages(loadedImages);
+            const loadedImages = await Promise.race([
+                Promise.all(imagePromises),
+                new Promise((resolve) => setTimeout(resolve, 6000)) // 6s timeout
+            ]);
+            
+            if (Array.isArray(loadedImages)) {
+                setImages(loadedImages as HTMLImageElement[]);
+            }
             setImagesLoaded(true);
         };
         loadImages();
