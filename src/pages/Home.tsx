@@ -9,7 +9,6 @@ import attendanceImg from '../assets/cards/attendance.png';
 import pyqImg from '../assets/cards/pyq.png';
 import academiaImg from '../assets/cards/academia.png';
 import updatesImg from '../assets/cards/updates.png';
-import lightningImg from '../assets/cards/lightning.png';
 
 // 3D Card Component
 function Card3D({ image, title, desc, link, index, totalCards, isLoggedIn }: {
@@ -325,7 +324,6 @@ export default function Home() {
         { image: pyqImg, title: "PYQ Archives", desc: "Filter and download past exam papers to boost your preparation.", link: "/pyq" },
         { image: academiaImg, title: "Academia Central", desc: "Student hub for sharing stationery, notes, and collaborating on projects.", link: "/academia-central" },
         { image: updatesImg, title: "College Updates", desc: "Real-time announcements and easy access to examination timetables.", link: "/college-updates" },
-        { image: lightningImg, title: "Lightning Fast", desc: "Experience seamless, zero-delay navigation across the entire platform.", link: null }
     ];
 
     return (
@@ -575,18 +573,16 @@ export default function Home() {
                                 upgrade your life.<br />bit by bit.
                             </h2>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', border: '1px solid rgba(255,255,255,0.2)', padding: '1rem 1.5rem', borderRadius: '4px', background: 'rgba(0,0,0,0.5)' }}>
-                            <div style={{ width: '60px', height: '60px', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '5px' }}>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '2px', width: '100%', height: '100%' }}>
-                                    {Array.from({ length: 25 }).map((_, i) => (
-                                        <div key={i} style={{ background: [0, 2, 4, 10, 12, 14, 20, 22, 24, 1, 7, 8, 11, 16, 17, 19].includes(i) ? '#000' : 'transparent' }}></div>
-                                    ))}
-                                </div>
-                            </div>
+                        <a href="https://camp-x-lac.vercel.app" target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', border: '1px solid rgba(255,255,255,0.2)', padding: '1rem 1.5rem', borderRadius: '4px', background: 'rgba(0,0,0,0.5)', textDecoration: 'none' }}>
+                            <img
+                                src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=https://camp-x-lac.vercel.app&bgcolor=ffffff&color=000000"
+                                alt="CampX QR Code"
+                                style={{ width: '60px', height: '60px', borderRadius: '4px' }}
+                            />
                             <div style={{ color: '#fff', fontSize: '1.1rem', fontFamily: "'Inter', sans-serif", lineHeight: '1.4' }}>
-                                download<br /><strong>CampX</strong>
+                                visit<br /><strong>CampX</strong>
                             </div>
-                        </div>
+                        </a>
                     </div>
                 </div>
             </section>

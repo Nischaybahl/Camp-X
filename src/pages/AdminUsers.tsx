@@ -26,24 +26,24 @@ export default function AdminUsers() {
     }
 
     return (
-        <div className="module-container" style={{ minHeight: '100vh', padding: '6rem 2rem 2rem 2rem', color: '#fff' }}>
+        <div className="module-container" style={{ minHeight: '100vh', padding: '6rem 2rem 2rem 2rem', color: 'var(--primary)' }}>
             <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
                 <h1 style={{ fontSize: '2.5rem', marginBottom: '1rem', fontFamily: "'Instrument Serif', serif" }}>
                     Registered Users
                 </h1>
-                <p style={{ color: 'rgba(255,255,255,0.6)', marginBottom: '3rem' }}>
+                <p style={{ color: 'var(--secondary)', marginBottom: '3rem' }}>
                     View a comprehensive list of all verified students actively using the platform.
                 </p>
 
                 {users.length === 0 ? (
-                    <div style={{ background: 'rgba(255,255,255,0.03)', padding: '3rem', textAlign: 'center', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
-                        <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '1.1rem' }}>No users found.</p>
+                    <div style={{ background: 'var(--glass)', padding: '3rem', textAlign: 'center', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
+                        <p style={{ color: 'var(--secondary)', fontSize: '1.1rem' }}>No users found.</p>
                     </div>
                 ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                         {users.map((u, idx) => (
                             <div key={idx} style={{ 
-                                background: 'rgba(255,255,255,0.03)', 
+                                background: 'var(--glass)', 
                                 border: '1px solid var(--glass-border)',
                                 borderRadius: '12px',
                                 padding: '1.5rem',
@@ -73,7 +73,7 @@ export default function AdminUsers() {
                                         <h3 style={{ fontSize: '1.2rem', marginBottom: '0.2rem', color: 'var(--primary)' }}>
                                             {u.name}
                                         </h3>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'rgba(255,255,255,0.6)', fontSize: '0.9rem' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--secondary)', fontSize: '0.9rem' }}>
                                             <Mail size={14} /> {u.email}
                                         </div>
                                     </div>
