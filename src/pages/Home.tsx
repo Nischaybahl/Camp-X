@@ -643,15 +643,31 @@ function SupportSection() {
         setSendError('');
         setIsSending(true);
 
-        // Store query in local storage for Admin to read
-        const messages = JSON.parse(localStorage.getItem('campx_support_messages') || '[]');
-        messages.push({ ...contactForm, timestamp: new Date().toISOString() });
-        localStorage.setItem('campx_support_messages', JSON.stringify(messages));
-        
-        setIsSending(false);
-        setSendSuccess(true);
-        setContactForm({ name: '', email: '', message: '' });
-        setTimeout(() => setSendSuccess(false), 5000);
+        try {
+            const BACKEND_URL = import.meta.env.VITE_API_URL || 'https://camp-x.onrender.com/api';
+            const payload = { ...contactForm, timestamp: new Date().toISOString() };
+            const response = await fetch(`${BACKEND_URL}/support`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) throw new Error('Failed to send');
+
+            setSendSuccess(true);
+            setContactForm({ name: '', email: '', message: '' });
+            setTimeout(() => setSendSuccess(false), 5000);
+        } catch {
+            // Fallback to localStorage
+            const messages = JSON.parse(localStorage.getItem('campx_support_messages') || '[]');
+            messages.push({ ...contactForm, timestamp: new Date().toISOString() });
+            localStorage.setItem('campx_support_messages', JSON.stringify(messages));
+            setSendSuccess(true);
+            setContactForm({ name: '', email: '', message: '' });
+            setTimeout(() => setSendSuccess(false), 5000);
+        } finally {
+            setIsSending(false);
+        }
     };
 
     const inputStyle: React.CSSProperties = {

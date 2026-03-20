@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Mail, User, Clock, Trash2 } from 'lucide-react';
 
 interface SupportMessage {
+    _id?: string;
     name: string;
     email: string;
     message: string;
@@ -10,16 +11,42 @@ interface SupportMessage {
 
 export default function SupportQueries() {
     const [messages, setMessages] = useState<SupportMessage[]>([]);
+    const [loading, setLoading] = useState(true);
     const currentUser = JSON.parse(localStorage.getItem('campx_current_user') || 'null');
 
     useEffect(() => {
-        const storedMessages = JSON.parse(localStorage.getItem('campx_support_messages') || '[]');
-        // Sort newest first
-        storedMessages.sort((a: SupportMessage, b: SupportMessage) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-        setMessages(storedMessages);
+        const fetchMessages = async () => {
+            try {
+                const BACKEND_URL = import.meta.env.VITE_API_URL || 'https://camp-x.onrender.com/api';
+                console.log('Fetching support messages from:', `${BACKEND_URL}/support`);
+                const response = await fetch(`${BACKEND_URL}/support`);
+                if (response.ok) {
+                    const data = await response.json();
+                    setMessages(data);
+                } else {
+                    const stored = JSON.parse(localStorage.getItem('campx_support_messages') || '[]');
+                    setMessages(stored.sort((a: SupportMessage, b: SupportMessage) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+                }
+            } catch {
+                const stored = JSON.parse(localStorage.getItem('campx_support_messages') || '[]');
+                setMessages(stored.sort((a: SupportMessage, b: SupportMessage) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchMessages();
     }, []);
 
-    const handleDelete = (timestamp: string) => {
+    const handleDelete = async (id: string | undefined, timestamp: string) => {
+        try {
+            const BACKEND_URL = import.meta.env.VITE_API_URL || 'https://camp-x.onrender.com/api';
+            if (id && id.length === 24) {
+                await fetch(`${BACKEND_URL}/support/${id}`, { method: 'DELETE' });
+            }
+        } catch (e) {
+            console.error('Delete failed', e);
+        }
+        
         const updated = messages.filter(m => m.timestamp !== timestamp);
         setMessages(updated);
         localStorage.setItem('campx_support_messages', JSON.stringify(updated));
@@ -43,7 +70,11 @@ export default function SupportQueries() {
                     View and manage all user messages sent through the Home page contact form.
                 </p>
 
-                {messages.length === 0 ? (
+                {loading ? (
+                    <div style={{ background: 'var(--glass)', padding: '3rem', textAlign: 'center', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
+                        <p style={{ color: 'var(--secondary)', fontSize: '1.1rem' }}>Loading messages...</p>
+                    </div>
+                ) : messages.length === 0 ? (
                     <div style={{ background: 'var(--glass)', padding: '3rem', textAlign: 'center', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
                         <p style={{ color: 'var(--secondary)', fontSize: '1.1rem' }}>No new messages.</p>
                     </div>
@@ -71,7 +102,7 @@ export default function SupportQueries() {
                                             <Clock size={14} /> {new Date(msg.timestamp).toLocaleString()}
                                         </div>
                                         <button 
-                                            onClick={() => handleDelete(msg.timestamp)}
+                                            onClick={() => handleDelete(msg._id, msg.timestamp)}
                                             style={{ background: 'transparent', border: 'none', color: '#ff6b6b', cursor: 'pointer', padding: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '6px' }}
                                             onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,50,50,0.1)'}
                                             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}

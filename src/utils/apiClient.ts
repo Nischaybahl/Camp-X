@@ -8,7 +8,7 @@ const BACKEND_URL = import.meta.env.VITE_API_URL || 'https://camp-x.onrender.com
 // Basic interface
 export interface BaseItem {
     id: string;
-    [key: string]: any;
+    [key: string]: unknown;
 }
 
 export async function fetchItems<T>(type: string, fallbackStorageKey: string): Promise<T[]> {
@@ -16,7 +16,7 @@ export async function fetchItems<T>(type: string, fallbackStorageKey: string): P
         const response = await fetch(`${BACKEND_URL}/items/${type}`);
         if (!response.ok) throw new Error('Network response was not ok');
         return await response.json();
-    } catch (e) {
+    } catch {
         console.warn(`Backend not available for ${type}. Using localStorage.`);
         const stored = localStorage.getItem(fallbackStorageKey);
         return stored ? JSON.parse(stored) : [];
@@ -32,7 +32,7 @@ export async function createItem<T extends BaseItem>(type: string, item: T, fall
         });
         if (!response.ok) throw new Error('Failed to create');
         return true;
-    } catch (e) {
+    } catch {
         console.warn(`Backend not available for ${type}. Falling back to localStorage.`);
         localStorage.setItem(fallbackStorageKey, JSON.stringify([item, ...currentItems]));
         return false;
@@ -48,7 +48,7 @@ export async function updateItem<T extends BaseItem>(type: string, id: string, i
         });
         if (!response.ok) throw new Error('Failed to update');
         return true;
-    } catch (e) {
+    } catch {
         console.warn(`Backend not available for ${type}. Falling back to localStorage.`);
         localStorage.setItem(fallbackStorageKey, JSON.stringify(currentItems.map(i => i.id === id ? item : i)));
         return false;
@@ -62,7 +62,7 @@ export async function deleteItem<T extends BaseItem>(type: string, id: string, f
         });
         if (!response.ok) throw new Error('Failed to delete');
         return true;
-    } catch (e) {
+    } catch {
         console.warn(`Backend not available for ${type}. Falling back to localStorage.`);
         localStorage.setItem(fallbackStorageKey, JSON.stringify(currentItems.filter(i => i.id !== id)));
         return false;

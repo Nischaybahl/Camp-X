@@ -10,11 +10,30 @@ interface CampXUser {
 
 export default function AdminUsers() {
     const [users, setUsers] = useState<CampXUser[]>([]);
+    const [loading, setLoading] = useState(true);
     const currentUser = JSON.parse(localStorage.getItem('campx_current_user') || 'null');
 
     useEffect(() => {
-        const storedUsers = JSON.parse(localStorage.getItem('campx_users') || '[]');
-        setUsers(storedUsers);
+        const fetchUsers = async () => {
+            try {
+                const BACKEND_URL = import.meta.env.VITE_API_URL || 'https://camp-x.onrender.com/api';
+                console.log('Fetching users from:', `${BACKEND_URL}/users`);
+                const response = await fetch(`${BACKEND_URL}/users`);
+                if (response.ok) {
+                    const data = await response.json();
+                    setUsers(data);
+                } else {
+                    const stored = JSON.parse(localStorage.getItem('campx_users') || '[]');
+                    setUsers(stored);
+                }
+            } catch {
+                const stored = JSON.parse(localStorage.getItem('campx_users') || '[]');
+                setUsers(stored);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchUsers();
     }, []);
 
     if (!currentUser || !currentUser.isAdmin) {
@@ -35,7 +54,11 @@ export default function AdminUsers() {
                     View a comprehensive list of all verified students actively using the platform.
                 </p>
 
-                {users.length === 0 ? (
+                {loading ? (
+                    <div style={{ background: 'var(--glass)', padding: '3rem', textAlign: 'center', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
+                        <p style={{ color: 'var(--secondary)', fontSize: '1.1rem' }}>Loading users...</p>
+                    </div>
+                ) : users.length === 0 ? (
                     <div style={{ background: 'var(--glass)', padding: '3rem', textAlign: 'center', borderRadius: '12px', border: '1px solid var(--glass-border)' }}>
                         <p style={{ color: 'var(--secondary)', fontSize: '1.1rem' }}>No users found.</p>
                     </div>

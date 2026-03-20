@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Plus, Trash2, Search, Book, FileText, X, FolderOpen } from 'lucide-react';
+import { fetchItems, createItem, deleteItem } from '../utils/apiClient';
 
 interface Note {
     id: string;
@@ -8,6 +9,7 @@ interface Note {
     content: string;
     createdAt: string;
     authorEmail?: string;
+    [key: string]: unknown;
 }
 
 const inputStyle: React.CSSProperties = {
@@ -18,10 +20,8 @@ const inputStyle: React.CSSProperties = {
 };
 
 export default function Notes() {
-    const [notes, setNotes] = useState<Note[]>(() => {
-        const saved = localStorage.getItem('campusNotes');
-        return saved ? JSON.parse(saved) : [];
-    });
+    const [notes, setNotes] = useState<Note[]>([]);
+    const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
     const [title, setTitle] = useState('');
     const [subject, setSubject] = useState('');
@@ -31,8 +31,11 @@ export default function Notes() {
     const currentUser = JSON.parse(localStorage.getItem('campx_current_user') || '{}');
 
     useEffect(() => {
-        localStorage.setItem('campusNotes', JSON.stringify(notes));
-    }, [notes]);
+        fetchItems<Note>('note', 'campusNotes').then(data => {
+            setNotes(data);
+            setLoading(false);
+        });
+    }, []);
 
     const resetForm = () => {
         setTitle(''); setSubject(''); setContent(''); setShowForm(false);
@@ -47,11 +50,14 @@ export default function Notes() {
             authorEmail: currentUser.email,
         };
         setNotes(prev => [newNote, ...prev]);
+        createItem('note', newNote, 'campusNotes', notes);
         resetForm();
     };
 
     const handleDelete = (id: string) => {
-        setNotes(prev => prev.filter(n => n.id !== id));
+        const updated = notes.filter(n => n.id !== id);
+        setNotes(updated);
+        deleteItem('note', id, 'campusNotes', notes);
     };
 
     const filtered = notes.filter(n => {
@@ -143,7 +149,11 @@ export default function Notes() {
 
             {/* Notes Display */}
             <div className="fade-in-up delay-3" style={{ maxWidth: '1000px', margin: '0 auto', width: '100%' }}>
-                {filtered.length === 0 && (
+                {loading ? (
+                    <div style={{ background: 'var(--glass)', padding: '3rem', textAlign: 'center', borderRadius: '16px', border: '1px solid var(--glass-border)' }}>
+                        <p style={{ color: 'var(--secondary)', fontSize: '1.1rem' }}>Loading notes...</p>
+                    </div>
+                ) : filtered.length === 0 && (
                     <div style={{
                         background: 'var(--glass)', border: '1px solid var(--glass-border)',
                         borderRadius: '16px', padding: '3rem', backdropFilter: 'blur(12px)',

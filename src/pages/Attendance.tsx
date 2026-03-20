@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Plus, Trash2, X, CheckCircle, XCircle, BookOpen, TrendingUp, AlertTriangle } from 'lucide-react';
+import { fetchItems, createItem, updateItem, deleteItem } from '../utils/apiClient';
 
 interface AttendanceRecord {
     date: string;
@@ -11,6 +12,7 @@ interface Subject {
     name: string;
     records: AttendanceRecord[];
     authorEmail?: string;
+    [key: string]: unknown;
 }
 
 const inputStyle: React.CSSProperties = {
@@ -21,10 +23,8 @@ const inputStyle: React.CSSProperties = {
 };
 
 export default function Attendance() {
-    const [subjects, setSubjects] = useState<Subject[]>(() => {
-        const saved = localStorage.getItem('campusAttendance');
-        return saved ? JSON.parse(saved) : [];
-    });
+    const [subjects, setSubjects] = useState<Subject[]>([]);
+    const [loading, setLoading] = useState(true);
     const [showAddSubject, setShowAddSubject] = useState(false);
     const [newSubjectName, setNewSubjectName] = useState('');
     const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -32,8 +32,11 @@ export default function Attendance() {
     const currentUser = JSON.parse(localStorage.getItem('campx_current_user') || '{}');
 
     useEffect(() => {
-        localStorage.setItem('campusAttendance', JSON.stringify(subjects));
-    }, [subjects]);
+        fetchItems<Subject>('attendance', 'campusAttendance').then(data => {
+            setSubjects(data);
+            setLoading(false);
+        });
+    }, []);
 
     const addSubject = () => {
         if (!newSubjectName.trim()) return;
@@ -44,28 +47,35 @@ export default function Attendance() {
             authorEmail: currentUser.email,
         };
         setSubjects(prev => [...prev, newSub]);
+        createItem('attendance', newSub, 'campusAttendance', subjects);
         setNewSubjectName('');
         setShowAddSubject(false);
     };
 
     const deleteSubject = (id: string) => {
-        setSubjects(prev => prev.filter(s => s.id !== id));
+        const updated = subjects.filter(s => s.id !== id);
+        setSubjects(updated);
+        deleteItem('attendance', id, 'campusAttendance', subjects);
         if (expandedId === id) setExpandedId(null);
     };
 
     const markAttendance = (subjectId: string, attended: boolean) => {
         const today = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-        setSubjects(prev => prev.map(s => {
+        const updatedSubjects = subjects.map(s => {
             if (s.id !== subjectId) return s;
-            // Check if today's record already exists
             const existing = s.records.findIndex(r => r.date === today);
+            let updatedRecords;
             if (existing >= 0) {
-                const updated = [...s.records];
-                updated[existing] = { date: today, attended };
-                return { ...s, records: updated };
+                updatedRecords = [...s.records];
+                updatedRecords[existing] = { date: today, attended };
+            } else {
+                updatedRecords = [...s.records, { date: today, attended }];
             }
-            return { ...s, records: [...s.records, { date: today, attended }] };
-        }));
+            const newSub = { ...s, records: updatedRecords };
+            updateItem('attendance', s.id, newSub, 'campusAttendance', subjects);
+            return newSub;
+        });
+        setSubjects(updatedSubjects);
     };
 
     const getPercentage = (s: Subject) => {
@@ -183,7 +193,11 @@ export default function Attendance() {
                 maxWidth: '800px', margin: '0 auto', width: '100%',
                 display: 'flex', flexDirection: 'column', gap: '1rem',
             }}>
-                {displayedSubjects.length === 0 && (
+                {loading ? (
+                    <div style={{ background: 'var(--glass)', padding: '3rem', textAlign: 'center', borderRadius: '16px', border: '1px solid var(--glass-border)' }}>
+                        <p style={{ color: 'var(--secondary)', fontSize: '1.1rem' }}>Loading attendance...</p>
+                    </div>
+                ) : displayedSubjects.length === 0 ? (
                     <div style={{
                         background: 'var(--glass)', border: '1px solid var(--glass-border)',
                         borderRadius: '16px', padding: '3rem', backdropFilter: 'blur(12px)',
@@ -194,7 +208,8 @@ export default function Attendance() {
                             No subjects added yet. Click "Add Subject" to start tracking.
                         </p>
                     </div>
-                )}
+                ) : (
+<>
 
                 {displayedSubjects.map((s, idx) => {
                     const pct = getPercentage(s);
@@ -336,6 +351,8 @@ export default function Attendance() {
                         </div>
                     );
                 })}
+                </>
+                )}
             </div>
         </main>
     );

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Plus, Trash2, Edit3, CheckCircle, Circle, X, AlertTriangle } from 'lucide-react';
-import { fetchItems, createItem, updateItem } from '../utils/apiClient';
+import { fetchItems, createItem, updateItem, deleteItem } from '../utils/apiClient';
 
 export interface Complaint {
     id: string;
@@ -10,6 +10,7 @@ export interface Complaint {
     completed: boolean;
     createdAt: string;
     authorEmail?: string;
+    [key: string]: unknown;
 }
 
 const inputStyle: React.CSSProperties = {
@@ -32,6 +33,7 @@ const glassCard: React.CSSProperties = {
 export default function CampusComplaint() {
 
     const [complaints, setComplaints] = useState<Complaint[]>([]);
+    const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [name, setName] = useState('');
@@ -45,6 +47,7 @@ export default function CampusComplaint() {
     useEffect(() => {
         fetchItems<Complaint>('complaint', 'campusComplaints').then(data => {
             setComplaints(data);
+            setLoading(false);
         });
     }, []);
 
@@ -82,11 +85,9 @@ export default function CampusComplaint() {
     };
 
     const handleDelete = (id: string) => {
-        setComplaints(prev => prev.filter(c => c.id !== id));
-        fetch(`http://localhost:5000/api/items/complaint/${id}`, { method: 'DELETE' }).catch(() => {
-            const updated = complaints.filter(c => c.id !== id);
-            localStorage.setItem('campusComplaints', JSON.stringify(updated));
-        });
+        const updated = complaints.filter(c => c.id !== id);
+        setComplaints(updated);
+        deleteItem('complaint', id, 'campusComplaints', complaints);
     };
 
     const toggleComplete = (id: string) => {
@@ -194,7 +195,11 @@ export default function CampusComplaint() {
                 display: 'flex', flexDirection: 'column', gap: '1rem',
                 maxWidth: '800px', margin: '0 auto', width: '100%',
             }}>
-                {filtered.length === 0 && (
+                {loading ? (
+                    <div style={{ ...glassCard, textAlign: 'center', padding: '3rem' }}>
+                        <p style={{ color: 'var(--secondary)', fontSize: '1.1rem' }}>Loading complaints...</p>
+                    </div>
+                ) : filtered.length === 0 ? (
                     <div style={{
                         ...glassCard, textAlign: 'center', padding: '3rem',
                         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem',
@@ -204,9 +209,9 @@ export default function CampusComplaint() {
                             {filter === 'all' ? 'No complaints yet. Click "Add Complaint" to get started.' : `No ${filter} complaints.`}
                         </p>
                     </div>
-                )}
-
-                {filtered.map(c => (
+                ) : (
+                    <>
+                    {filtered.map(c => (
                     <div key={c.id} style={{
                         ...glassCard,
                         display: 'flex', alignItems: 'flex-start', gap: '1rem',
@@ -217,7 +222,7 @@ export default function CampusComplaint() {
                         onMouseLeave={e => { e.currentTarget.style.background = 'var(--glass)'; e.currentTarget.style.transform = 'translateX(0)'; }}
                     >
                         {/* Toggle Complete */}
-                        {(currentUser.isAdmin || c.authorEmail === currentUser.email) && (
+                        {currentUser.isAdmin && (
                             <button onClick={() => toggleComplete(c.id)} style={{
                                 background: 'transparent', border: 'none', cursor: 'pointer', color: c.completed ? 'var(--accent)' : 'var(--secondary)',
                                 marginTop: '2px', transition: 'color 0.3s', flexShrink: 0,
@@ -252,7 +257,7 @@ export default function CampusComplaint() {
                         </div>
 
                         {/* Actions */}
-                        {(currentUser.isAdmin || c.authorEmail === currentUser.email) && (
+                        {currentUser.isAdmin && (
                             <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
                                 <button onClick={() => handleEdit(c)} style={{
                                     background: 'rgba(255,255,255,0.06)', border: '1px solid var(--glass-border)',
@@ -278,6 +283,8 @@ export default function CampusComplaint() {
                         )}
                     </div>
                 ))}
+                </>
+                )}
             </div>
         </main>
     );

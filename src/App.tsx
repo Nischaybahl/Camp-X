@@ -34,21 +34,15 @@ interface NavigationProps {
 function Navigation({ isLightMode, toggleTheme }: NavigationProps) {
   const location = useLocation();
   const path = location.pathname;
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const user = JSON.parse(localStorage.getItem('campx_current_user') || 'null');
+  const isLoggedIn = !!user;
+  const isAdmin = !!(user && user.isAdmin);
 
-  useEffect(() => {
-    setIsMobileMenuOpen(false); // Close menu on navigation
-
-    const user = JSON.parse(localStorage.getItem('campx_current_user') || 'null');
-    setIsLoggedIn(!!user);
-    if (user && user.isAdmin) setIsAdmin(true);
-  }, [path]);
+  const closeMenu = () => setIsMobileMenuOpen(false);
 
   const handleLogout = () => {
     localStorage.removeItem('campx_current_user');
-    setIsLoggedIn(false);
     window.location.href = '/';
   };
 
@@ -62,18 +56,18 @@ function Navigation({ isLightMode, toggleTheme }: NavigationProps) {
       </Link>
 
       <div className={`nav-links ${isMobileMenuOpen ? 'mobile-active' : ''}`}>
-        <Link to="/home" className="nav-link" style={{ color: path === '/home' ? 'var(--primary)' : 'var(--secondary)' }}>Home</Link>
-        <Link to="/campus-complaint" className="nav-link" style={{ color: path === '/campus-complaint' ? 'var(--primary)' : 'var(--secondary)' }}>Campus Complaint</Link>
+        <Link to="/home" className="nav-link" onClick={closeMenu} style={{ color: path === '/home' ? 'var(--primary)' : 'var(--secondary)' }}>Home</Link>
+        <Link to="/campus-complaint" className="nav-link" onClick={closeMenu} style={{ color: path === '/campus-complaint' ? 'var(--primary)' : 'var(--secondary)' }}>Campus Complaint</Link>
 
-        <Link to="/notes" className="nav-link" style={{ color: path === '/notes' ? 'var(--primary)' : 'var(--secondary)' }}>Notes</Link>
-        <Link to="/attendance" className="nav-link" style={{ color: path === '/attendance' ? 'var(--primary)' : 'var(--secondary)' }}>Attendance</Link>
-        <Link to="/pyq" className="nav-link" style={{ color: path === '/pyq' ? 'var(--primary)' : 'var(--secondary)' }}>PYQ</Link>
-        <Link to="/academia-central" className="nav-link" style={{ color: path === '/academia-central' ? 'var(--primary)' : 'var(--secondary)' }}>Academia Central</Link>
-        <Link to="/college-updates" className="nav-link" style={{ color: path === '/college-updates' ? 'var(--primary)' : 'var(--secondary)' }}>College Updates</Link>
+        <Link to="/notes" className="nav-link" onClick={closeMenu} style={{ color: path === '/notes' ? 'var(--primary)' : 'var(--secondary)' }}>Notes</Link>
+        <Link to="/attendance" className="nav-link" onClick={closeMenu} style={{ color: path === '/attendance' ? 'var(--primary)' : 'var(--secondary)' }}>Attendance</Link>
+        <Link to="/pyq" className="nav-link" onClick={closeMenu} style={{ color: path === '/pyq' ? 'var(--primary)' : 'var(--secondary)' }}>PYQ</Link>
+        <Link to="/academia-central" className="nav-link" onClick={closeMenu} style={{ color: path === '/academia-central' ? 'var(--primary)' : 'var(--secondary)' }}>Academia Central</Link>
+        <Link to="/college-updates" className="nav-link" onClick={closeMenu} style={{ color: path === '/college-updates' ? 'var(--primary)' : 'var(--secondary)' }}>College Updates</Link>
         {isAdmin && (
           <>
-            <Link to="/admin/queries" className="nav-link" style={{ color: path === '/admin/queries' ? '#ff6b6b' : 'var(--secondary)', fontWeight: 'bold' }}>Support Queries</Link>
-            <Link to="/admin/users" className="nav-link" style={{ color: path === '/admin/users' ? '#4dabf7' : 'var(--secondary)', fontWeight: 'bold' }}>User Directory</Link>
+            <Link to="/admin/queries" className="nav-link" onClick={closeMenu} style={{ color: path === '/admin/queries' ? '#ff6b6b' : 'var(--secondary)', fontWeight: 'bold' }}>Support Queries</Link>
+            <Link to="/admin/users" className="nav-link" onClick={closeMenu} style={{ color: path === '/admin/users' ? '#4dabf7' : 'var(--secondary)', fontWeight: 'bold' }}>User Directory</Link>
           </>
         )}
       </div>
