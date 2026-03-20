@@ -587,45 +587,33 @@ export default function Home() {
                 </div>
             </section>
 
-            {/* ====== SUPPORT / CONTACT SECTION ====== */}
-            <SupportSection />
-
-            {/* Footer */}
-            <footer className="footer-logos" style={{
-                zIndex: 10,
-                pointerEvents: 'auto',
-                background: 'rgba(0,0,0,0.95)',
-                borderTop: '1px solid var(--glass-border)',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'center',
-                alignItems: 'center',
-                padding: '3rem 2rem',
-                gap: '1rem'
-            }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '2rem', flexWrap: 'wrap', justifyContent: 'center' }}>
-                    <div style={{ color: 'rgba(255,255,255,0.9)', fontSize: '1.4rem', fontWeight: '500', letterSpacing: '0.5px' }}>
-                        CampX | A Platform by Nischay Bahl
+            {/* Solid Black Background Container for Bottom Sections */}
+            <div style={{ background: '#000', width: '100%', position: 'relative', zIndex: 5 }}>
+                <SupportSection />
+                
+                <footer className="footer-logos" style={{
+                    zIndex: 10,
+                    pointerEvents: 'auto',
+                    background: '#000',
+                    borderTop: '1px solid var(--glass-border)',
+                    padding: '4rem 4rem 8rem 4rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '2rem'
+                }}>
+                    <div className="logo-container" style={{ opacity: 1, marginBottom: '1rem' }}>
+                        <span>CampX<span style={{ color: 'var(--accent)' }}> | </span>A Platform by Nischay Bahl</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: '1rem', background: 'rgba(204,255,0,0.1)', padding: '0.4rem 0.8rem', borderRadius: '2rem', border: '1px solid rgba(204,255,0,0.2)' }}>
+                            <Headphones size={14} color="var(--accent)" />
+                            <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '1px' }}>Support</span>
+                        </div>
                     </div>
-                    <button
-                        onClick={() => document.getElementById('support-section')?.scrollIntoView({ behavior: 'smooth' })}
-                        style={{
-                            display: 'flex', alignItems: 'center', gap: '0.5rem',
-                            background: 'rgba(204,255,0,0.1)', border: '1px solid rgba(204,255,0,0.3)',
-                            color: '#ccff00', padding: '0.6rem 1.4rem', borderRadius: '2rem',
-                            fontSize: '0.9rem', fontWeight: '600', cursor: 'pointer',
-                            transition: 'all 0.3s',
-                        }}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(204,255,0,0.2)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(204,255,0,0.1)'; e.currentTarget.style.transform = 'translateY(0)'; }}
-                    >
-                        <Headphones size={16} /> Support
-                    </button>
-                </div>
-                <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '1rem', fontStyle: 'italic' }}>
-                    Where technology meets the future of campus life.
-                </div>
-            </footer>
+                    <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.9rem', maxWidth: '600px', textAlign: 'center', lineHeight: '1.6' }}>
+                        Where technology meets the future of campus life.
+                    </p>
+                </footer>
+            </div>
         </div>
     );
 }
