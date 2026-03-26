@@ -31,11 +31,21 @@ const AdminDashboard: React.FC = () => {
       setLoading(true);
       setError(null);
       
-      const [usersSnap, notesSnap, complaintsSnap] = await Promise.all([
-        getDocs(collection(db, "users")),
-        getDocs(collection(db, "notes")),
-        getDocs(collection(db, "complaints"))
+      // 5-second manual timeout array
+      const timeout = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error("Firebase query timed out. Check Vercel ENV variables.")), 5000)
+      );
+      
+      const countsSnap = await Promise.race([
+        Promise.all([
+          getDocs(collection(db, "users")),
+          getDocs(collection(db, "notes")),
+          getDocs(collection(db, "complaints"))
+        ]),
+        timeout
       ]);
+      
+      const [usersSnap, notesSnap, complaintsSnap] = countsSnap as any;
       
       setStats({
         users: usersSnap.size,
@@ -48,16 +58,21 @@ const AdminDashboard: React.FC = () => {
       const recentComplaintsQuery = query(collection(db, "complaints"), orderBy("createdAt", "desc"), limit(5));
       const recentUsersQuery = query(collection(db, "users"), orderBy("createdAt", "desc"), limit(5));
       
-      const [notesRes, complaintsRes, usersRes] = await Promise.all([
-        getDocs(recentNotesQuery),
-        getDocs(recentComplaintsQuery),
-        getDocs(recentUsersQuery)
+      const activitiesSnap = await Promise.race([
+        Promise.all([
+          getDocs(recentNotesQuery),
+          getDocs(recentComplaintsQuery),
+          getDocs(recentUsersQuery)
+        ]),
+        timeout
       ]);
 
+      const [notesRes, complaintsRes, usersRes] = activitiesSnap as any;
+
       const activities = [
-        ...notesRes.docs.map(doc => ({ id: doc.id, type: 'note', title: doc.data().title || 'Untitled Note', user: doc.data().uploader || 'User', time: doc.data().createdAt?.toDate?.() || new Date() })),
-        ...complaintsRes.docs.map(doc => ({ id: doc.id, type: 'complaint', title: doc.data().issue || 'Issue', user: doc.data().student || 'Student', time: doc.data().createdAt?.toDate?.() || new Date() })),
-        ...usersRes.docs.map(doc => ({ id: doc.id, type: 'user', title: 'Joined', user: doc.data().name || 'New Student', time: doc.data().createdAt?.toDate?.() || new Date() }))
+        ...notesRes.docs.map((doc: any) => ({ id: doc.id, type: 'note', title: doc.data().title || 'Untitled Note', user: doc.data().uploader || 'User', time: doc.data().createdAt?.toDate?.() || new Date() })),
+        ...complaintsRes.docs.map((doc: any) => ({ id: doc.id, type: 'complaint', title: doc.data().issue || 'Issue', user: doc.data().student || 'Student', time: doc.data().createdAt?.toDate?.() || new Date() })),
+        ...usersRes.docs.map((doc: any) => ({ id: doc.id, type: 'user', title: 'Joined', user: doc.data().name || 'New Student', time: doc.data().createdAt?.toDate?.() || new Date() }))
       ].sort((a, b) => b.time.getTime() - a.time.getTime()).slice(0, 5);
 
       setRecentActivity(activities);
