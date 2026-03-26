@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, Users, BookOpen, AlertCircle, Bell, 
-  MessageSquare, BarChart3, Search, Sun, Moon,
-  LogOut, Clock, CheckCircle2, XCircle
+  MessageSquare, BarChart3, Sun, Moon,
+  LogOut, Clock, XCircle
 } from 'lucide-react';
 import { 
-  collection, getDocs, query, orderBy, limit, doc, updateDoc, deleteDoc
+  collection, getDocs, query, orderBy, limit, doc, updateDoc, deleteDoc, addDoc
 } from 'firebase/firestore';
 import { db } from '../utils/firebase';
 import './AdminDashboard.css';
@@ -163,25 +163,274 @@ const UserManagementSection = () => {
     );
 };
 
+const academicData: Record<string, Record<string, string[]>> = {
+  "Year 1": {
+    "SEMESTER I": [
+      "Engineering Mathematics-I",
+      "Engineering Physics",
+      "Basic Electrical Engineering",
+      "Environmental Science",
+      "Engineering Graphics",
+      "Programming-I",
+      "Basic Civil Engineering"
+    ],
+    "SEMESTER II": [
+      "Engineering Mathematics-II",
+      "Engineering Chemistry",
+      "Basic Mechanical Engineering",
+      "Programming-II",
+      "Communication Skills",
+      "Basic Electronics Engineering",
+      "Engineering Workshop-I",
+      "History of Science and Technology"
+    ]
+  },
+  "Year 2": {
+    "SEMESTER III": [
+      "Discrete Mathematics",
+      "Object Oriented Programming",
+      "Data Structures",
+      "Java Programming",
+      "Digital Electronics",
+      "Data Communication",
+      "Computer System Architecture",
+      "Soft Skills-I"
+    ],
+    "SEMESTER IV": [
+      "Microprocessor and Interfacing",
+      "Operating Systems",
+      "Advanced Java Programming",
+      "Theory of Computation",
+      "Database Management Systems",
+      "Elective-1",
+      "Soft Skills-II"
+    ]
+  },
+  "Year 3": {
+    "SEMESTER V": [
+      "Software Engineering",
+      "Computer Networks",
+      "Elective-2",
+      "Elective-3",
+      "Fundamentals of Management Economics & Accountancy",
+      "Soft Skills-III",
+      "Open Elective-1"
+    ],
+    "SEMESTER VI": [
+      "Compiler Design",
+      "Design and Analysis of Algorithms",
+      "Research Methodology",
+      "Universal Human Values & Professional Ethics",
+      "Mini Project",
+      "Soft Skills-IV",
+      "Elective-4",
+      "Open Elective-2"
+    ]
+  },
+  "Year 4": {
+    "SEMESTER VII": [
+      "Elective-5",
+      "Elective-6",
+      "Industrial Training",
+      "Project-I",
+      "Open Learning Courses",
+      "Open Elective-3"
+    ],
+    "SEMESTER VIII": [
+      "Project-II"
+    ]
+  }
+};
+
 const NotesManagementSection = () => {
     const [notes, setNotes] = useState<any[]>([]);
+    
+    // Filters & Selections
+    const [selectedYear, setSelectedYear] = useState('');
+    const [selectedSem, setSelectedSem] = useState('');
+    const [selectedSubject, setSelectedSubject] = useState('');
+    const [selectedUnit, setSelectedUnit] = useState('');
+
+    const [uploadMode, setUploadMode] = useState(false);
+    const [newTitle, setNewTitle] = useState('');
+    const [newFileURL, setNewFileURL] = useState('');
+    const [loadingAction, setLoadingAction] = useState(false);
+
+    const semesters = selectedYear ? Object.keys(academicData[selectedYear] || {}) : [];
+    const subjects = selectedSem && selectedYear ? academicData[selectedYear][selectedSem] || [] : [];
+    const units = ['Unit 1', 'Unit 2', 'Unit 3', 'Unit 4', 'Unit 5'];
+
+    const fetchNotes = async () => {
+        try {
+            const snap = await getDocs(collection(db, "notes"));
+            setNotes(snap.docs.map(d => ({id: d.id, ...d.data()})));
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
     useEffect(() => {
-        getDocs(collection(db, "notes")).then(snap => setNotes(snap.docs.map(d => ({id: d.id, ...d.data()}))));
+        fetchNotes();
     }, []);
+
+    const handleUpload = async () => {
+        if (!selectedYear || !selectedSem || !selectedSubject || !selectedUnit || !newTitle || !newFileURL) {
+            alert("Please fill all fields to upload.");
+            return;
+        }
+        setLoadingAction(true);
+        try {
+            const noteData = {
+                year: selectedYear,
+                semester: selectedSem,
+                subject: selectedSubject,
+                unit: selectedUnit,
+                title: newTitle,
+                fileURL: newFileURL,
+                uploadedBy: 'Admin',
+                status: 'Approved',
+                createdAt: new Date()
+            };
+            await addDoc(collection(db, "notes"), noteData);
+            alert("Note uploaded successfully!");
+            setNewTitle('');
+            setNewFileURL('');
+            setUploadMode(false);
+            fetchNotes();
+        } catch(e) {
+            console.error(e);
+            alert("Failed to upload note.");
+        }
+        setLoadingAction(false);
+    };
+
+    const handleDelete = async (id: string) => {
+        if (!window.confirm("Delete this note?")) return;
+        setLoadingAction(true);
+        try {
+            await deleteDoc(doc(db, "notes", id));
+            setNotes(notes.filter(n => n.id !== id));
+        } catch(e) {
+            console.error(e);
+        }
+        setLoadingAction(false);
+    };
+
+    const handleApprove = async (id: string) => {
+        setLoadingAction(true);
+        try {
+            await updateDoc(doc(db, "notes", id), { status: 'Approved' });
+            setNotes(notes.map(n => n.id === id ? { ...n, status: 'Approved' } : n));
+        } catch (e) {
+            console.error(e);
+        }
+        setLoadingAction(false);
+    };
+
+    const handleUpdateNoteDetails = async (id: string, currentSubject: string, currentUnit: string) => {
+        const newSub = window.prompt("Edit Subject:", currentSubject);
+        if (newSub === null) return;
+        const newUn = window.prompt("Edit Unit:", currentUnit);
+        if (newUn === null) return;
+        
+        setLoadingAction(true);
+        try {
+            await updateDoc(doc(db, "notes", id), { subject: newSub, unit: newUn });
+            setNotes(notes.map(n => n.id === id ? { ...n, subject: newSub, unit: newUn } : n));
+        } catch (e) {
+            console.error(e);
+        }
+        setLoadingAction(false);
+    };
+
+    // Filtering logic for display
+    const filteredNotes = notes.filter(n => {
+        if (selectedYear && n.year !== selectedYear) return false;
+        if (selectedSem && n.semester !== selectedSem) return false;
+        if (selectedSubject && n.subject !== selectedSubject) return false;
+        if (selectedUnit && n.unit !== selectedUnit) return false;
+        return true;
+    });
+
     return (
         <div className="card-container fade-in">
-            <h2 className="section-title">Content Moderation</h2>
-            <div className="notes-list-grid">
-                {notes.map(n => (
-                    <div key={n.id} className="note-admin-card">
-                        <div className="note-info-row"><strong>{n.title}</strong><span>{n.subject}</span></div>
-                        <div className="note-actions">
-                            <button className="btn-approve"><CheckCircle2 size={16}/></button>
-                            <button className="btn-delete"><Trash2 size={16}/></button>
-                        </div>
-                    </div>
-                ))}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                <h2 className="section-title" style={{ margin: 0 }}>Content Moderation</h2>
+                <button 
+                  className="admin-btn admin-btn-primary" 
+                  onClick={() => setUploadMode(!uploadMode)}
+                  disabled={loadingAction}
+                >
+                    {uploadMode ? 'View Notes' : 'Upload New Note'}
+                </button>
             </div>
+
+            {/* Step-by-step Selection */}
+            <div className="admin-filters" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
+                <select className="admin-input" style={{ marginBottom: 0 }} value={selectedYear} onChange={(e) => { setSelectedYear(e.target.value); setSelectedSem(''); setSelectedSubject(''); }}>
+                    <option value="">Select Year</option>
+                    {Object.keys(academicData).map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+
+                <select className="admin-input" style={{ marginBottom: 0 }} value={selectedSem} onChange={(e) => { setSelectedSem(e.target.value); setSelectedSubject(''); }} disabled={!selectedYear}>
+                    <option value="">Select Semester</option>
+                    {semesters.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+
+                <select className="admin-input" style={{ marginBottom: 0 }} value={selectedSubject} onChange={(e) => setSelectedSubject(e.target.value)} disabled={!selectedSem}>
+                    <option value="">Select Subject</option>
+                    {subjects.map((sub: string) => <option key={sub} value={sub}>{sub}</option>)}
+                </select>
+
+                <select className="admin-input" style={{ marginBottom: 0 }} value={selectedUnit} onChange={(e) => setSelectedUnit(e.target.value)} disabled={!selectedSubject}>
+                    <option value="">Select Unit</option>
+                    {units.map(u => <option key={u} value={u}>{u}</option>)}
+                </select>
+            </div>
+
+            {uploadMode ? (
+                <div style={{ background: 'var(--activity-bg)', padding: '2rem', borderRadius: '16px', border: '1px solid var(--border)' }}>
+                    <h3 style={{ marginBottom: '1.5rem', fontWeight: 600 }}>Upload Note Details</h3>
+                    <input type="text" className="admin-input" placeholder="Note Title (e.g. Trees and Graphs)" value={newTitle} onChange={e => setNewTitle(e.target.value)} />
+                    <input type="text" className="admin-input" placeholder="File URL (Google Drive, PDF link, etc.)" value={newFileURL} onChange={e => setNewFileURL(e.target.value)} />
+                    <button className="admin-btn admin-btn-primary" onClick={handleUpload} disabled={loadingAction} style={{ width: '100%', padding: '1rem' }}>
+                        {loadingAction ? 'Uploading...' : 'Confirm Upload'}
+                    </button>
+                </div>
+            ) : (
+                <div className="notes-list-grid">
+                    {filteredNotes.length > 0 ? filteredNotes.map(n => (
+                        <div key={n.id} className="note-admin-card" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '1rem' }}>
+                            <div style={{ width: '100%' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                    <strong style={{ fontSize: '1.1rem' }}>{n.title}</strong>
+                                    {n.status !== 'Approved' && <span className="badge badge-warning" style={{ background: 'rgba(255, 193, 7, 0.1)', color: '#ffc107' }}>Pending</span>}
+                                </div>
+                                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                                    {n.year} &bull; {n.semester} &bull; {n.unit}
+                                </div>
+                                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                                    Subject: <span style={{ color: 'var(--accent)' }}>{n.subject}</span>
+                                </div>
+                                {n.fileURL && <a href={n.fileURL} target="_blank" rel="noreferrer" style={{ fontSize: '0.8rem', color: '#00d4ff', textDecoration: 'none', display: 'inline-block', marginTop: '8px' }}>View Attachment</a>}
+                            </div>
+                            
+                            <div className="note-actions" style={{ width: '100%', display: 'flex', gap: '0.5rem', borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
+                                {n.status !== 'Approved' && (
+                                    <button className="admin-btn admin-btn-primary" style={{ flex: 1, padding: '0.5rem', fontSize: '0.85rem' }} onClick={() => handleApprove(n.id)}>Approve</button>
+                                )}
+                                <button className="admin-btn admin-btn-outline" style={{ flex: 1, padding: '0.5rem', fontSize: '0.85rem', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-main)', borderRadius: '8px' }} onClick={() => handleUpdateNoteDetails(n.id, n.subject, n.unit)}>Edit</button>
+                                <button className="admin-btn admin-btn-outline" style={{ padding: '0.5rem', background: 'transparent', border: '1px solid var(--border)', borderRadius: '8px' }} onClick={() => handleDelete(n.id)}><Trash2 size={16} /></button>
+                            </div>
+                        </div>
+                    )) : (
+                        <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                            <BookOpen size={48} style={{ opacity: 0.2, marginBottom: '1rem', display: 'block', margin: '0 auto 1rem auto' }} />
+                            <p>No notes found for the selected filters.</p>
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 };
