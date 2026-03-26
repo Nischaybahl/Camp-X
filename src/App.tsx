@@ -14,8 +14,7 @@ import AcademiaCentral from './pages/AcademiaCentral';
 import CollegeUpdates from './pages/CollegeUpdates';
 import Login from './pages/Login';
 import SignUp from './pages/SignUp';
-import SupportQueries from './pages/SupportQueries';
-import AdminUsers from './pages/AdminUsers';
+import AdminDashboard from './pages/AdminDashboard';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const user = localStorage.getItem('campx_current_user');
@@ -66,8 +65,7 @@ function Navigation({ isLightMode, toggleTheme }: NavigationProps) {
         <Link to="/college-updates" className="nav-link" onClick={closeMenu} style={{ color: path === '/college-updates' ? 'var(--primary)' : 'var(--secondary)' }}>College Updates</Link>
         {isAdmin && (
           <>
-            <Link to="/admin/queries" className="nav-link" onClick={closeMenu} style={{ color: path === '/admin/queries' ? '#ff6b6b' : 'var(--secondary)', fontWeight: 'bold' }}>Support Queries</Link>
-            <Link to="/admin/users" className="nav-link" onClick={closeMenu} style={{ color: path === '/admin/users' ? '#4dabf7' : 'var(--secondary)', fontWeight: 'bold' }}>User Directory</Link>
+            <Link to="/admin" className="nav-link" onClick={closeMenu} style={{ color: path === '/admin' ? '#ccff00' : 'var(--secondary)', fontWeight: 'bold' }}>Admin Panel</Link>
           </>
         )}
       </div>
@@ -202,8 +200,7 @@ function MainApp() {
           <Route path="/pyq" element={<ProtectedRoute><PYQ /></ProtectedRoute>} />
           <Route path="/academia-central" element={<ProtectedRoute><AcademiaCentral /></ProtectedRoute>} />
           <Route path="/college-updates" element={<ProtectedRoute><CollegeUpdates /></ProtectedRoute>} />
-          <Route path="/admin/queries" element={<ProtectedRoute><SupportQueries /></ProtectedRoute>} />
-          <Route path="/admin/users" element={<ProtectedRoute><AdminUsers /></ProtectedRoute>} />
+          <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<SignUp />} />
         </Routes>
