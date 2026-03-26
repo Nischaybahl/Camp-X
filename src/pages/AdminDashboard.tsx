@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, Users, BookOpen, AlertCircle, Bell, 
-  MessageSquare, BarChart3, Sun, Moon,
+  MessageSquare, BarChart3,
   LogOut, Clock, XCircle
 } from 'lucide-react';
 import './AdminDashboard.css';
@@ -10,19 +10,12 @@ const BACKEND_URL = import.meta.env.VITE_API_URL || 'https://camp-x.onrender.com
 
 const AdminDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState('overview');
-  const [theme, setTheme] = useState(localStorage.getItem('campx-admin-theme') || 'dark');
   const [stats, setStats] = useState({ users: 0, notes: 0, complaints: 0, activeUsers: 0 });
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Theme support
-  useEffect(() => {
-    document.body.className = theme === 'dark' ? 'dark-mode' : 'light-mode';
-    localStorage.setItem('campx-admin-theme', theme);
-  }, [theme]);
-
-  const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+  // Dark mode is handled by external navbar
 
   const fetchData = async () => {
     try {
@@ -31,8 +24,8 @@ const AdminDashboard: React.FC = () => {
       
       const [usersRes, notesRes, complaintsRes] = await Promise.all([
         fetch(`${BACKEND_URL}/users`),
-        fetch(`${BACKEND_URL}/notes`),
-        fetch(`${BACKEND_URL}/complaints`)
+        fetch(`${BACKEND_URL}/items/note`),
+        fetch(`${BACKEND_URL}/items/complaint`)
       ]);
       
       const usersData = usersRes.ok ? await usersRes.json() : [];
@@ -131,7 +124,6 @@ const AdminDashboard: React.FC = () => {
         <header className="admin-header">
           <h1 className="page-title">{activeTab.toUpperCase()}</h1>
           <div className="header-right">
-            <button className="icon-btn" onClick={toggleTheme}>{theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}</button>
             <div className="admin-profile"><div className="avatar">AD</div></div>
           </div>
         </header>
@@ -211,17 +203,20 @@ const NotesManagementSection = () => {
     const fetchNotes = async () => {
         setLoadingNotes(true);
         try {
-            // Build query params
-            const params = new URLSearchParams();
-            if (selectedYear) params.append('year', selectedYear);
-            if (selectedSem) params.append('semester', selectedSem);
-            if (selectedSubject) params.append('subject', selectedSubject);
-            if (selectedUnit) params.append('unit', selectedUnit);
-
-            const queryStr = params.toString() ? `?${params.toString()}` : '';
-            const res = await fetch(`${BACKEND_URL}/notes${queryStr}`);
+            const res = await fetch(`${BACKEND_URL}/items/note`);
             const data = await res.json();
-            setNotes(Array.isArray(data) ? data : data.data || []);
+            const rawList = Array.isArray(data) ? data : data.data || [];
+            
+            // Client-side filtering ensures it works even if the backend lacks specific query support
+            const filtered = rawList.filter((n: any) => {
+                if (selectedYear && n.year != selectedYear.replace('Year ', '')) return false;
+                if (selectedSem && n.semester != selectedSem.replace('SEMESTER ', '')) return false;
+                if (selectedSubject && n.subject !== selectedSubject) return false;
+                if (selectedUnit && n.unit != selectedUnit.replace('Unit ', '')) return false;
+                return true;
+            });
+            
+            setNotes(filtered);
         } catch (e) {
             console.error(e);
         }
@@ -237,14 +232,14 @@ const NotesManagementSection = () => {
     const handleDelete = async (id: string) => {
         if (!window.confirm("Delete this note?")) return;
         try {
-            await fetch(`${BACKEND_URL}/notes/${id}`, { method: 'DELETE' });
+            await fetch(`${BACKEND_URL}/items/note/${id}`, { method: 'DELETE' });
             setNotes(notes.filter(n => (n._id || n.id) !== id));
         } catch(e) { console.error(e); }
     };
 
     const handleApprove = async (id: string) => {
         try {
-            await fetch(`${BACKEND_URL}/notes/${id}`, { 
+            await fetch(`${BACKEND_URL}/items/note/${id}`, { 
                 method: 'PUT', headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({ status: 'Approved' })
             });
@@ -258,7 +253,7 @@ const NotesManagementSection = () => {
         const newUn = window.prompt("Edit Unit:", currentUnit);
         if (newUn === null) return;
         try {
-            await fetch(`${BACKEND_URL}/notes/${id}`, { 
+            await fetch(`${BACKEND_URL}/items/note/${id}`, { 
                 method: 'PUT', headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({ subject: newSub, unit: newUn })
             });
@@ -337,7 +332,7 @@ const NotesManagementSection = () => {
 const ComplaintsSection = () => {
     const [complaints, setComplaints] = useState<any[]>([]);
     useEffect(() => {
-        fetch(`${BACKEND_URL}/complaints`)
+        fetch(`${BACKEND_URL}/items/complaint`)
             .then(r => r.json())
             .then(data => setComplaints(Array.isArray(data) ? data : data.data || []))
             .catch(e => console.error(e));
