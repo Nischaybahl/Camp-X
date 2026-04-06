@@ -1,4 +1,4 @@
-import { FileText, Download, Calendar, Search } from 'lucide-react';
+import { FileText, Download, Calendar } from 'lucide-react';
 
 export default function PYQ() {
   const papers = [

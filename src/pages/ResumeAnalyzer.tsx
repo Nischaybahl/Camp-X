@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
-import { CheckCircle, AlertTriangle, FileText, Target, Briefcase, Zap, Type, Award, Star } from 'lucide-react';
+import { CheckCircle, AlertTriangle, Target, Briefcase, Zap, Type, Award, Star } from 'lucide-react';
 
 /* ─── CONSTANTS & DICTIONARIES ─────────────────────────────────────── */
 const ACTION_VERBS = ['achieved', 'improved', 'trained', 'resolved', 'managed', 'created', 'developed', 'reduced', 'increased', 'designed', 'led', 'implemented', 'orchestrated', 'spearheaded', 'maximized', 'optimized', 'generated', 'streamlined', 'coordinated', 'launched', 'delivered', 'built', 'directed', 'executed', 'established'];
 const BUZZWORDS = ['hard worker', 'team player', 'synergy', 'go-getter', 'thought leader', 'results-driven', 'detail-oriented', 'self-motivated', 'dynamic', 'proactive'];
-const CONTACT_KEYWORDS = ['github.com', 'linkedin.com', 'portfolio', 'mailto:', '.com', '@'];
 
 /* ─── TYPES ────────────────────────────────────────────────────────── */
 interface ScoreResults {
