@@ -139,31 +139,75 @@ const AdminDashboard: React.FC = () => {
 
 const UserManagementSection = () => {
     const [users, setUsers] = useState<any[]>([]);
+    const [complaints, setComplaints] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
     
     useEffect(() => {
-        fetch(`${BACKEND_URL}/users`)
-            .then(r => r.json())
-            .then(data => setUsers(Array.isArray(data) ? data : data.data || []))
-            .catch(e => console.error(e));
+        Promise.all([
+          fetch(`${BACKEND_URL}/users`).then(r => r.json()),
+          fetch(`${BACKEND_URL}/items/complaint`).then(r => r.json())
+        ]).then(([userData, compData]) => {
+          setUsers(Array.isArray(userData) ? userData : userData.data || []);
+          setComplaints(Array.isArray(compData) ? compData : compData.data || []);
+          setIsLoading(false);
+        }).catch(e => {
+          console.error(e);
+          setIsLoading(false);
+        });
     }, []);
+
+    const deleteUser = async (id: string, name: string) => {
+        if (!window.confirm(`Are you sure you want to permanently remove the user: ${name}?`)) return;
+        try {
+            await fetch(`${BACKEND_URL}/users/${id}`, { method: 'DELETE' });
+            setUsers(prev => prev.filter(u => (u._id || u.id) !== id));
+        } catch(e) {
+            console.error(e);
+            alert('Failed to delete user.');
+        }
+    };
 
     return (
         <div className="card-container fade-in">
-            <h2 className="section-title">Manage Registered Students</h2>
-            <table className="admin-table">
-                <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th></tr></thead>
-                <tbody>
-                    {users.map(u => (
-                        <tr key={u._id || u.id}>
-                          <td>{u.name || 'Unknown User'}</td>
-                          <td>{u.email}</td>
-                          <td>{u.role || 'Student'}</td>
-                          <td><span className="badge badge-success">Active</span></td>
-                        </tr>
-                    ))}
-                    {users.length === 0 && <tr><td colSpan={4} style={{textAlign: 'center', padding: '2rem'}}>No users found.</td></tr>}
-                </tbody>
-            </table>
+            <h2 className="section-title">Manage Registered Students (Total: {users.length})</h2>
+            
+            {isLoading ? (
+                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>Loading Users...</div>
+            ) : (
+                <div style={{ overflowX: 'auto' }}>
+                    <table className="admin-table">
+                        <thead><tr><th>Name</th><th>Email</th><th>Complaints Filed</th><th>Status</th><th>Actions</th></tr></thead>
+                        <tbody>
+                            {users.map(u => {
+                                const uid = u._id || u.id;
+                                // Try to match complaint author or student field to user Name/Email
+                                const userComplaints = complaints.filter(c => 
+                                    (c.authorName === u.name) || (c.student === u.name) || (c.email === u.email)
+                                );
+                                return (
+                                    <tr key={uid}>
+                                      <td>{u.name || 'Unknown User'}</td>
+                                      <td>{u.email}</td>
+                                      <td><span style={{ fontWeight: 600, color: userComplaints.length > 0 ? 'var(--accent)' : 'inherit'}}>{userComplaints.length}</span></td>
+                                      <td><span className="badge badge-success">Active</span></td>
+                                      <td>
+                                          <button 
+                                            onClick={() => deleteUser(uid, u.name)}
+                                            style={{ background: 'rgba(255, 60, 60, 0.1)', color: '#ff4444', border: '1px solid rgba(255,60,60,0.3)', padding: '5px 12px', borderRadius: '6px', cursor: 'pointer', transition: '0.2s', fontSize: '0.8rem' }}
+                                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255, 60, 60, 0.2)'}
+                                            onMouseLeave={e => e.currentTarget.style.background = 'rgba(255, 60, 60, 0.1)'}
+                                          >
+                                              Remove User
+                                          </button>
+                                      </td>
+                                    </tr>
+                                );
+                            })}
+                            {users.length === 0 && <tr><td colSpan={5} style={{textAlign: 'center', padding: '2rem'}}>No users found.</td></tr>}
+                        </tbody>
+                    </table>
+                </div>
+            )}
         </div>
     );
 };

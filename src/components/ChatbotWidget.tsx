@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 
 /* ─── Constants ───────────────────────────────────────────────────────── */
-const ANTHROPIC_KEY = import.meta.env.VITE_ANTHROPIC_KEY || '';
 const WEATHER_KEY = import.meta.env.VITE_WEATHER_KEY || '';
 
 const PLATFORM_MAP: Record<string, string> = {
@@ -14,23 +13,6 @@ const PLATFORM_MAP: Record<string, string> = {
   instagram: 'https://instagram.com',
   twitter: 'https://twitter.com',
 };
-
-const SYSTEM_PROMPT = `You are CampX AI, the official assistant for CampX — a college platform created by Nischay Bahl. CampX has these features:
-- Campus Complaint: submit and track campus complaints
-- Notes: upload and access study notes
-- Attendance: track your class attendance
-- PYQ: access previous year exam questions
-- Academia Central: hub for academic resources
-- College Updates: latest college news
-- Admin Panel: for administrators only
-
-You can help with:
-1. General greetings and conversation
-2. Explaining CampX features to users
-3. BTech career guidance — when asked, explain different job roles (Software Developer, Data Scientist, DevOps, ML Engineer, Cybersecurity Analyst, Product Manager, UI/UX Designer, Cloud Engineer, Full Stack Developer), what programming languages and skills each requires, average time to learn, expected salary in India and abroad, and job demand from 2025 to 2030.
-4. Resume/CV rating — ask the user to paste their resume text, then give a score out of 10 with specific feedback on: formatting, content quality, skills section, ATS compatibility, and what to improve.
-5. Weather info if city is provided.
-Be friendly, concise, and helpful. Keep responses short (under 200 words) unless the user asks for detailed guidance.`;
 
 const QUICK_ACTIONS = [
   { label: '🕐 Time & Date', msg: 'What time is it?' },
@@ -108,42 +90,44 @@ export default function ChatbotWidget() {
     }
   };
 
-  const callClaude = async (history: Message[]): Promise<string> => {
-    if (!ANTHROPIC_KEY) return '⚠️ Anthropic API key not configured. Add `VITE_ANTHROPIC_KEY` to your .env file.';
-    try {
-      const apiMessages = history
-        .filter(m => m.content)
-        .slice(-20)
-        .map(m => ({ role: m.role, content: m.content }));
-
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': ANTHROPIC_KEY,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1024,
-          system: SYSTEM_PROMPT,
-          messages: apiMessages,
-        }),
-      });
-
-      if (!res.ok) {
-        const err = await res.text();
-        console.error('Claude API error:', err);
-        return '❌ Sorry, I couldn\'t process that right now. Please try again.';
-      }
-
-      const data = await res.json();
-      return data.content?.[0]?.text || 'I didn\'t get a response. Please try again.';
-    } catch (e) {
-      console.error('Claude API error:', e);
-      return '❌ Network error. Please check your connection.';
+  const getPredefinedResponse = (text: string): string => {
+    const lower = text.toLowerCase();
+    
+    if (lower.includes('complaint')) {
+      return "If you're facing any issues on campus, you can easily raise a formal campus complaint. \n\nWe track grievances related to Hostels, IT Infrastructure, Maintenance, and more. \n\n👉 [Click here to Open Campus Complaints](/campus-complaint)";
     }
+    if (lower.includes('note')) {
+      return "CampX provides a complete repository of academic notes organized by semester and subject! \n\n👉 [Click here to browse Notes](/notes)";
+    }
+    if (lower.includes('attendance')) {
+      return "Wondering if you can skip the next lecture? You can calculate and track your real-time attendance using our specific attendance dashboard. \n\n👉 [Click here to track Attendance](/attendance)";
+    }
+    if (lower.includes('pyq') || lower.includes('previous year')) {
+      return "Ace your exams by practicing with our library of Previous Year Questions (PYQs). \n\n👉 [Click here to download PYQs](/pyq)";
+    }
+    if (lower.includes('academia') || lower.includes('central')) {
+      return "Academia Central is your hub for all serious academic resources and guides. \n\n👉 [Click here to visit Academia Central](/academia-central)";
+    }
+    if (lower.includes('update') || lower.includes('news')) {
+      return "Stay informed with the latest schedules, exams, and important announcements on the College Updates page. \n\n👉 [Click here to see College Updates](/college-updates)";
+    }
+    if (lower.includes('resume') || lower.includes('ats')) {
+      return "Want to know if your resume will pass initial software screening? Use our AI-powered ATS Resume Analyzer to get an instant 0-100 score on impact and brevity. \n\n👉 [Click here to score your Resume](/resume)";
+    }
+    if (lower.includes('handwriting') || lower.includes('write')) {
+      return "Need to submit an assignment in handwriting? You can directly type your text and our Text-to-Handwriting converter will generate realistic handwritten pages for you! \n\n👉 [Click here to convert to Handwriting](/handwriting)";
+    }
+    if (lower.includes('btech') || lower.includes('career') || lower.includes('job')) {
+      return "**BTech Career Guide overview**:\n\n1. **Software Developer** (Needs Java/C++/JS). High demand everywhere, great starting salaries.\n2. **Data Scientist** (Needs Python/R/Maths). Critical for the AI revolution, excellent pay.\n3. **Cloud Engineer** (Needs AWS/Azure). Growing rapidly as tech moves off-premise.\n4. **Cybersecurity Analyst** (Needs Networking, Linux). Indispensable for corporate safety.\n\nWhich specific path are you interested in?";
+    }
+    if (lower.includes('feature') || lower.includes('what can you do') || lower.includes('help')) {
+      return "I can give you information or direct links to these brilliant CampX features:\n- **Campus Complaints**\n- **Academic Notes & PYQs**\n- **Attendance Tracker**\n- **Resume Analyzer**\n- **Text-to-Handwriting**\n\nJust ask me to open any of them!";
+    }
+    if (lower.match(/\b(hi|hello|hey|greetings|wassup)\b/i)) {
+      return "Hello there! 👋 I am CampX AI, your personal assistant. Ask me about our features like Resume Analysis, Attendance Tracking, or Campus Complaints!";
+    }
+
+    return "I'm your official CampX assistant! While I don't have a specific pre-programmed answer for that, try asking me to 'open complaints', 'show features', or 'take me to the resume analyzer'.";
   };
 
   /* ─── Send message ──────────────────────────────────────────────── */
@@ -188,11 +172,13 @@ export default function ChatbotWidget() {
         return;
       }
 
-      // Claude API for everything else
-      const updatedHistory: Message[] = [...messages, { role: 'user', content: msg }];
-      const reply = await callClaude(updatedHistory);
-      addMsg('assistant', reply);
-    } finally {
+      // Predefined Knowledge Base for everything else
+      setTimeout(() => {
+        const reply = getPredefinedResponse(msg);
+        addMsg('assistant', reply);
+        setLoading(false);
+      }, 600); // simulate tiny delay for realistic feel
+    } catch {
       setLoading(false);
     }
   }, [input, loading, messages, waitingForCity, addMsg]);
@@ -232,6 +218,8 @@ export default function ChatbotWidget() {
       let rendered = line.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
       // Inline code
       rendered = rendered.replace(/`(.+?)`/g, '<code style="background:rgba(245,200,66,0.15);padding:1px 5px;border-radius:4px;font-size:0.82em">$1</code>');
+      // Links
+      rendered = rendered.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" style="color:var(--accent,#f5c842);font-weight:600;text-decoration:none;">$1</a>');
       return <p key={i} style={{ margin: line ? '0.25em 0' : '0.6em 0' }} dangerouslySetInnerHTML={{ __html: rendered || '&nbsp;' }} />;
     });
   };
