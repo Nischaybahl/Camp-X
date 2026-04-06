@@ -226,7 +226,7 @@ export default function Intro() {
                     {/* Dark Overlay for premium readability */}
                     <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1 }}></div>
                     <iframe 
-                        src="https://www.youtube.com/embed/e4x5du87qGQ?autoplay=1&mute=1&controls=0&showinfo=0&rel=0&loop=1&playlist=e4x5du87qGQ"
+                        src="https://www.youtube.com/embed/0EWcxtOAJE4?autoplay=1&mute=1&controls=0&showinfo=0&rel=0&loop=1&playlist=0EWcxtOAJE4"
                         frameBorder="0"
                         allow="autoplay; encrypted-media"
                         style={{
