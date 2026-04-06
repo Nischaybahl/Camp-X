@@ -21,7 +21,7 @@ export default function CollegeUpdates() {
             </p>
 
             <div className="updates-grid fade-in-up delay-2" style={{
-                display: 'grid', gridTemplateColumns: 'minmax(300px, 1fr) minmax(300px, 1fr)', gap: '3rem', width: '100%', maxWidth: '1100px', margin: '0 auto', textAlign: 'left'
+                display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '3rem', width: '100%', maxWidth: '1100px', margin: '0 auto', textAlign: 'left'
             }}>
                 <div style={{ background: 'var(--glass)', border: '1px solid var(--glass-border)', borderRadius: '20px', padding: '2.5rem', backdropFilter: 'blur(12px)' }}>
                     <h2 style={{ fontSize: '1.8rem', color: 'var(--primary)', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.8rem' }}>

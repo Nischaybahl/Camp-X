@@ -205,7 +205,7 @@ export default function ResumeAnalyzer() {
         </div>
 
         {/* RESUME TEMPLATE BUIlDER */}
-        <div style={{ 
+        <div id="resume-builder-grid" style={{ 
           background: '#fff', color: '#000', borderRadius: '8px', 
           boxShadow: '0 20px 40px rgba(0,0,0,0.4)', overflow: 'hidden',
           display: 'grid', gridTemplateColumns: 'minmax(250px, 1fr) 2.5fr',
@@ -412,6 +412,15 @@ export default function ResumeAnalyzer() {
 
       <style>{`
         @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        @media (max-width: 768px) {
+          #resume-builder-grid {
+            grid-template-columns: 1fr !important;
+          }
+          #resume-results-grid {
+            grid-template-columns: 1fr !important;
+            gap: 2rem !important;
+          }
+        }
       `}</style>
     </div>
   );

@@ -413,3 +413,83 @@ body {
     resize: none;
     min-height: 100px;
 }
+
+/* --- Mobile Responsiveness --- */
+@media (max-width: 768px) {
+  .admin-layout {
+    flex-direction: column;
+    height: auto;
+    min-height: 100vh;
+  }
+
+  .admin-sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    padding: 1.5rem;
+    position: relative; /* Remove sticky if any */
+  }
+
+  .sidebar-nav {
+    flex-direction: row;
+    overflow-x: auto;
+    gap: 1rem;
+    padding-bottom: 0.5rem;
+  }
+
+  .nav-item {
+    flex-shrink: 0;
+    padding: 10px 14px;
+    gap: 0.5rem;
+  }
+
+  .nav-item span {
+    font-size: 0.85rem;
+  }
+
+  .logo {
+    margin-bottom: 1rem;
+    text-align: left;
+  }
+
+  .logout-btn {
+    margin-top: 1rem;
+    width: max-content;
+  }
+
+  .admin-header {
+    padding: 0 1.5rem;
+  }
+
+  .admin-content {
+    padding: 1.5rem;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .stat-card {
+    padding: 1rem;
+    gap: 1rem;
+    flex-direction: column;
+    text-align: center;
+    justify-content: center;
+  }
+
+  .admin-filters {
+    grid-template-columns: 1fr !important;
+  }
+
+  .admin-table th, .admin-table td {
+    padding: 0.8rem 0.5rem;
+    font-size: 0.85rem;
+    word-break: break-all;
+  }
+}
+
+@media (max-width: 480px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
