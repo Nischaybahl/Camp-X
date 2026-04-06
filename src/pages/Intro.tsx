@@ -84,42 +84,6 @@ export default function Intro() {
         }
     };
 
-    const videoRef = useRef<HTMLVideoElement>(null);
-    const [videoDuration, setVideoDuration] = useState(0);
-
-    // Get the duration of the video once it loads
-    useEffect(() => {
-        const handleLoaded = () => {
-            if (videoRef.current && Number.isFinite(videoRef.current.duration)) {
-                setVideoDuration(videoRef.current.duration);
-            }
-        };
-
-        const v = videoRef.current;
-        if (v) {
-            v.addEventListener('loadedmetadata', handleLoaded);
-            if (v.readyState >= 1) setVideoDuration(v.duration);
-        }
-        return () => {
-            if (v) v.removeEventListener('loadedmetadata', handleLoaded);
-        };
-    }, []);
-
-    // Sync video time to our smooth scroll progress
-    useEffect(() => {
-        if (videoDuration > 0) {
-            return smoothProgress.onChange((val) => {
-                if (videoRef.current) {
-                    requestAnimationFrame(() => {
-                        if (videoRef.current) {
-                            videoRef.current.currentTime = val * videoDuration;
-                        }
-                    });
-                }
-            });
-        }
-    }, [smoothProgress, videoDuration]);
-
     if (isLoggedIn) {
         return <Navigate to="/home" replace />;
     }
@@ -258,23 +222,25 @@ export default function Intro() {
 
             {/* ── Video Background ─────────────────────────────────────────────── */}
             <div style={{ position: 'fixed', inset: 0, zIndex: 0, background: '#000', overflow: 'hidden' }}>
-                <motion.div style={{ y: yOffset, scale: videoScale, width: '100%', height: '100%' }}>
+                <motion.div style={{ y: yOffset, scale: videoScale, width: '100%', height: '100%', position: 'relative' }}>
                     {/* Dark Overlay for premium readability */}
-                    <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1 }}></div>
-                    <video
-                        ref={videoRef}
-                        muted
-                        playsInline
+                    <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1 }}></div>
+                    <iframe 
+                        src="https://www.youtube.com/embed/e4x5du87qGQ?autoplay=1&mute=1&controls=0&showinfo=0&rel=0&loop=1&playlist=e4x5du87qGQ"
+                        frameBorder="0"
+                        allow="autoplay; encrypted-media"
                         style={{
-                            width: '100%',
-                            height: '100%',
-                            objectFit: 'cover',
-                            opacity: 1,
-                            display: 'block',
+                            position: 'absolute',
+                            top: '50%',
+                            left: '50%',
+                            width: '100vw',
+                            height: '56.25vw', // 16:9 ratio
+                            minHeight: '100vh',
+                            minWidth: '177.77vh',
+                            transform: 'translate(-50%, -50%)',
+                            pointerEvents: 'none',
                         }}
-                    >
-                        <source src="/intro-bg.mp4" type="video/mp4" />
-                    </video>
+                    ></iframe>
                 </motion.div>
             </div>
 
