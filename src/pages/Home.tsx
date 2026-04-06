@@ -882,7 +882,7 @@ function SupportSection() {
             <button
                 onClick={() => setShowSupportModal(!showSupportModal)}
                 style={{
-                    position: 'fixed', bottom: '2rem', right: '2rem',
+                    position: 'fixed', bottom: '2rem', left: '2rem',
                     width: '56px', height: '56px', borderRadius: '50%',
                     background: 'linear-gradient(135deg, #ccff00, #88cc00)',
                     border: 'none', cursor: 'pointer',
@@ -902,7 +902,7 @@ function SupportSection() {
             {/* Floating Support Quick Card */}
             {showSupportModal && (
                 <div style={{
-                    position: 'fixed', bottom: '5.5rem', right: '2rem',
+                    position: 'fixed', bottom: '5.5rem', left: '2rem',
                     width: '320px',
                     background: 'rgba(15,15,20,0.95)',
                     backdropFilter: 'blur(20px)',

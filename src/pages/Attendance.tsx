@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Plus, Trash2, X, CheckCircle, XCircle, BookOpen, TrendingUp, AlertTriangle } from 'lucide-react';
-import { fetchItems, createItem, updateItem, deleteItem } from '../utils/apiClient';
+import { fetchItems, updateItem, deleteItem, createItem } from '../utils/apiClient';
 
-interface AttendanceRecord {
+export interface AttendanceRecord {
     date: string;
     attended: boolean;
 }

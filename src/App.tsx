@@ -15,6 +15,9 @@ import CollegeUpdates from './pages/CollegeUpdates';
 import Login from './pages/Login';
 import SignUp from './pages/SignUp';
 import AdminDashboard from './pages/AdminDashboard';
+import Handwriting from './pages/Handwriting';
+import ResumeAnalyzer from './pages/ResumeAnalyzer';
+import ChatbotWidget from './components/ChatbotWidget';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const user = localStorage.getItem('campx_current_user');
@@ -63,6 +66,10 @@ function Navigation({ isLightMode, toggleTheme }: NavigationProps) {
         <Link to="/pyq" className="nav-link" onClick={closeMenu} style={{ color: path === '/pyq' ? 'var(--primary)' : 'var(--secondary)' }}>PYQ</Link>
         <Link to="/academia-central" className="nav-link" onClick={closeMenu} style={{ color: path === '/academia-central' ? 'var(--primary)' : 'var(--secondary)' }}>Academia Central</Link>
         <Link to="/college-updates" className="nav-link" onClick={closeMenu} style={{ color: path === '/college-updates' ? 'var(--primary)' : 'var(--secondary)' }}>College Updates</Link>
+        <Link to="/handwriting" className="nav-link" onClick={closeMenu} style={{ color: path === '/handwriting' ? 'var(--primary)' : 'var(--secondary)' }}>Handwriting</Link>
+        <Link to="/resume" className="nav-link" onClick={closeMenu} style={{ color: path === '/resume' ? 'var(--primary)' : 'var(--secondary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+          Resume <span style={{ background: 'var(--accent)', color: '#000', fontSize: '0.6rem', padding: '2px 6px', borderRadius: '10px', fontWeight: 'bold' }}>AI</span>
+        </Link>
         {isAdmin && (
           <>
             <Link to="/admin" className="nav-link" onClick={closeMenu} style={{ color: path === '/admin' ? '#ccff00' : 'var(--secondary)', fontWeight: 'bold' }}>Admin Panel</Link>
@@ -200,6 +207,8 @@ function MainApp() {
           <Route path="/pyq" element={<ProtectedRoute><PYQ /></ProtectedRoute>} />
           <Route path="/academia-central" element={<ProtectedRoute><AcademiaCentral /></ProtectedRoute>} />
           <Route path="/college-updates" element={<ProtectedRoute><CollegeUpdates /></ProtectedRoute>} />
+          <Route path="/handwriting" element={<ProtectedRoute><Handwriting /></ProtectedRoute>} />
+          <Route path="/resume" element={<ProtectedRoute><ResumeAnalyzer /></ProtectedRoute>} />
           <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<SignUp />} />
@@ -213,6 +222,7 @@ export default function App() {
   return (
     <Router>
       <MainApp />
+      <ChatbotWidget />
     </Router>
   );
 }

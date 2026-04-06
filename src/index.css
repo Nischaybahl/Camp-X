@@ -569,3 +569,26 @@ input[type="range"]::-moz-range-thumb {
   0%, 100% { box-shadow: 0 8px 30px rgba(204,255,0,0.3); }
   50% { box-shadow: 0 8px 40px rgba(204,255,0,0.5), 0 0 20px rgba(204,255,0,0.2); }
 }
+
+/* ─── Floating Orbs ─────────────────────────────────────────────────────────── */
+@keyframes orbFloat {
+  0%   { transform: translateY(calc(var(--parallax-y, 0px) + -20px)); }
+  100% { transform: translateY(calc(var(--parallax-y, 0px) +  20px)); }
+}
+
+/* ─── Typewriter cursor blink ────────────────────────────────────────────────── */
+@keyframes cursorBlink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+
+.typewriter-cursor {
+  display: inline-block;
+  width: 3px;
+  height: 1em;
+  background: currentColor;
+  margin-left: 3px;
+  vertical-align: text-bottom;
+  border-radius: 1px;
+  animation: cursorBlink 0.8s ease-in-out infinite;
+}

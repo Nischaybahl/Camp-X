@@ -1,278 +1,458 @@
-import { useRef, useEffect, useState } from 'react';
-import { motion, useScroll, useTransform, useSpring, useVelocity } from 'framer-motion';
+import { useRef, useState, useEffect } from 'react';
+import { motion, useScroll, useTransform, useSpring, useVelocity, AnimatePresence } from 'framer-motion';
 import { useNavigate, Navigate } from 'react-router-dom';
+import { Copy, Check, X } from 'lucide-react';
 
-const TOTAL_FRAMES = 68;
-const FRAME_PATH = '/ffffff-ezgif-745afa2c5a99e1cc-gif-jpg';
+// ── Effect hooks & components ─────────────────────────────────────────────────
+import { useParticleTrail } from '../hooks/useParticleTrail';
+import { useTilt } from '../hooks/useTilt';
+import { useScrollReveal } from '../hooks/useScrollReveal';
+import FloatingOrbs from '../components/FloatingOrbs';
 
 export default function Intro() {
     const containerRef = useRef<HTMLDivElement>(null);
-    const canvasRef = useRef<HTMLCanvasElement>(null);
-    const [images, setImages] = useState<HTMLImageElement[]>([]);
-    const [imagesLoaded, setImagesLoaded] = useState(false);
-    const [loadProgress, setLoadProgress] = useState(0);
     const navigate = useNavigate();
 
     const [isLoggedIn] = useState(() => !!localStorage.getItem('campx_current_user'));
 
-    // Scroll progress tracking
+    // Contact Modal State
+    const [isContactOpen, setIsContactOpen] = useState(false);
+    const [copiedEmail, setCopiedEmail] = useState(false);
+    const [copiedPhone, setCopiedPhone] = useState(false);
+
+    // ── Effect 1: Cursor Particle Trail ────────────────────────────────────────
+    useParticleTrail();
+
+    // ── Effect 2: 3D Tilt on hero ──────────────────────────────────────────────
+    const { ref: tiltRef1, onMouseMove: onMM1, onMouseLeave: onML1, onMouseEnter: onME1 } = useTilt<HTMLDivElement>({ maxDeg: 8, perspective: 1000, resetDuration: 600 });
+    const { ref: tiltRef2, onMouseMove: onMM2, onMouseLeave: onML2, onMouseEnter: onME2 } = useTilt<HTMLDivElement>({ maxDeg: 12, perspective: 900 });
+    const { ref: tiltRef3, onMouseMove: onMM3, onMouseLeave: onML3, onMouseEnter: onME3 } = useTilt<HTMLDivElement>({ maxDeg: 12, perspective: 900 });
+    const { ref: tiltRef4, onMouseMove: onMM4, onMouseLeave: onML4, onMouseEnter: onME4 } = useTilt<HTMLDivElement>({ maxDeg: 12, perspective: 900 });
+
+    // ── Effect 3: Scroll-triggered reveal (for deep sections if needed) ────────
+    useScrollReveal({ threshold: 0.15, duration: '0.8s', translateY: '40px', staggerMs: 150 });
+
+    // ── Scroll progress tracking ───────────────────────────────────────────────
     const { scrollYProgress } = useScroll({
         target: containerRef,
         offset: ['start start', 'end start']
     });
 
-    // Smooth spring animation for buttery scroll
     const smoothProgress = useSpring(scrollYProgress, {
         stiffness: 5,
         damping: 10,
         restDelta: 0.001
     });
 
-    // Anti-gravity effect based on scroll velocity
+    // Anti-gravity parallax + Zoom
     const scrollVelocity = useVelocity(scrollYProgress);
-    const yOffset = useTransform(
-        scrollVelocity,
-        [-1, 0, 1],
-        [15, 0, -15] // Floats up when scrolling down
-    );
+    const yOffset = useTransform(scrollVelocity, [-1, 0, 1], [15, 0, -15]);
+    const videoScale = useTransform(smoothProgress, [0, 1], [1, 1.15]); // Subtle zoom in on scroll
 
-    // Map scroll to frame index (bi-directional)
-    const frameIndex = useTransform(
-        smoothProgress,
-        [0, 1],
-        [0, TOTAL_FRAMES - 1]
-    );
+    // Text overlay fade timings
+    const section1Opacity = useTransform(smoothProgress, [0, 0.05, 0.2, 0.25], [1, 1, 1, 0]);
+    const section1Y = useTransform(smoothProgress, [0, 0.25], [0, -40]);
 
-    // Preload all frames
+    const section2Opacity = useTransform(smoothProgress, [0.25, 0.3, 0.5, 0.55], [0, 1, 1, 0]);
+    const section2Y = useTransform(smoothProgress, [0.25, 0.3, 0.5, 0.55], [40, 0, 0, -40]);
+
+    const section3Opacity = useTransform(smoothProgress, [0.55, 0.6, 0.8, 0.85], [0, 1, 1, 0]);
+    const section3Y = useTransform(smoothProgress, [0.55, 0.6, 0.8, 0.85], [40, 0, 0, -40]);
+
+    const section4Opacity = useTransform(smoothProgress, [0.85, 0.9, 0.98, 1], [0, 1, 1, 0]);
+    const section4Y = useTransform(smoothProgress, [0.85, 0.9, 0.98, 1], [40, 0, 0, -40]);
+
+    const scrollIndicatorOpacity = useTransform(smoothProgress, [0, 0.1], [1, 0]);
+
+    // Handle ESC to close modal
     useEffect(() => {
-        const loadImages = async () => {
-            const imagePromises = Array.from({ length: TOTAL_FRAMES }, (_, i) => {
-                return new Promise<HTMLImageElement>((resolve) => {
-                    const img = new Image();
-                    // Maps i=0 -> frame_00_delay-0.1s.jpg, i=67 -> frame_67_delay-0.1s.jpg
-                    const frameNumber = String(i).padStart(2, '0');
-                    img.src = `${FRAME_PATH}/frame_${frameNumber}_delay-0.1s.jpg`;
-                    
-                    img.onload = () => {
-                        setLoadProgress((prev) => prev + (100 / TOTAL_FRAMES));
-                        resolve(img);
-                    };
-                    img.onerror = () => {
-                        console.error(`Failed to load frame: ${img.src}`);
-                        setLoadProgress((prev) => prev + (100 / TOTAL_FRAMES));
-                        resolve(img); // Still resolve to keep loading moving
-                    };
-                });
-            });
-
-            const loadedImages = await Promise.race([
-                Promise.all(imagePromises),
-                new Promise((resolve) => setTimeout(resolve, 6000)) // 6s timeout
-            ]);
-            
-            if (Array.isArray(loadedImages)) {
-                setImages(loadedImages as HTMLImageElement[]);
-            }
-            setImagesLoaded(true);
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') setIsContactOpen(false);
         };
-        loadImages();
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
     }, []);
 
-    // Canvas rendering
+    const copyToClipboard = (text: string, type: 'email' | 'phone') => {
+        navigator.clipboard.writeText(text);
+        if (type === 'email') {
+            setCopiedEmail(true);
+            setTimeout(() => setCopiedEmail(false), 2000);
+        } else {
+            setCopiedPhone(true);
+            setTimeout(() => setCopiedPhone(false), 2000);
+        }
+    };
+
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const [videoDuration, setVideoDuration] = useState(0);
+
+    // Get the duration of the video once it loads
     useEffect(() => {
-        if (!imagesLoaded || !canvasRef.current) return;
-
-        const canvas = canvasRef.current;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-
-        const renderFrame = () => {
-            const currentFrame = Math.round(frameIndex.get());
-            const img = images[Math.max(0, Math.min(currentFrame, TOTAL_FRAMES - 1))];
-
-            if (img) {
-                // Responsive canvas sizing
-                canvas.width = window.innerWidth;
-                canvas.height = window.innerHeight;
-
-                // Calculate scaling (cover fit)
-                const scale = Math.max(
-                    canvas.width / img.width,
-                    canvas.height / img.height
-                );
-
-                const x = (canvas.width - img.width * scale) / 2;
-                const y = (canvas.height - img.height * scale) / 2;
-
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+        const handleLoaded = () => {
+            if (videoRef.current && Number.isFinite(videoRef.current.duration)) {
+                setVideoDuration(videoRef.current.duration);
             }
         };
 
-        const unsubscribe = frameIndex.on('change', renderFrame);
-        renderFrame(); // Initial render
-
-        // Handle window resize
-        const handleResize = () => renderFrame();
-        window.addEventListener('resize', handleResize);
-
+        const v = videoRef.current;
+        if (v) {
+            v.addEventListener('loadedmetadata', handleLoaded);
+            if (v.readyState >= 1) setVideoDuration(v.duration);
+        }
         return () => {
-            unsubscribe();
-            window.removeEventListener('resize', handleResize);
+            if (v) v.removeEventListener('loadedmetadata', handleLoaded);
         };
-    }, [imagesLoaded, images, frameIndex]);
+    }, []);
 
-    // Text overlay animations
-    const section1Opacity = useTransform(smoothProgress, [0, 0.05, 0.2, 0.25], [1, 1, 1, 0]);
-    const section2Opacity = useTransform(smoothProgress, [0.3, 0.35, 0.5, 0.55], [0, 1, 1, 0]);
-    const section3Opacity = useTransform(smoothProgress, [0.6, 0.65, 0.8, 0.85], [0, 1, 1, 0]);
-    const section4Opacity = useTransform(smoothProgress, [0.9, 0.92, 0.98, 1], [0, 1, 1, 0]);
-    const scrollIndicatorOpacity = useTransform(smoothProgress, [0, 0.1], [1, 0]);
+    // Sync video time to our smooth scroll progress
+    useEffect(() => {
+        if (videoDuration > 0) {
+            return smoothProgress.onChange((val) => {
+                if (videoRef.current) {
+                    requestAnimationFrame(() => {
+                        if (videoRef.current) {
+                            videoRef.current.currentTime = val * videoDuration;
+                        }
+                    });
+                }
+            });
+        }
+    }, [smoothProgress, videoDuration]);
 
     if (isLoggedIn) {
         return <Navigate to="/home" replace />;
     }
 
-    if (!imagesLoaded) {
-        return (
-            <div className="fixed inset-0 bg-[#0a0a0a] flex flex-col items-center justify-center z-[9999]">
-                <div className="w-64 h-2 bg-white/10 rounded-full overflow-hidden mb-4">
-                    <motion.div
-                        className="h-full bg-gradient-to-r from-[var(--accent)] to-[var(--primary)]"
-                        initial={{ width: '0%' }}
-                        animate={{ width: `${loadProgress}%` }}
-                        transition={{ duration: 0.3 }}
-                    />
-                </div>
-                <p className="text-white/70 text-lg font-['Inter']" style={{ color: 'rgba(255,255,255,0.7)', fontFamily: 'Inter, sans-serif' }}>
-                    Loading Experience... {Math.round(loadProgress)}%
-                </p>
-            </div>
-        );
-    }
+    const GlassCardStyle = {
+        padding: '2.5rem 3.5rem',
+        borderRadius: '24px',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        background: 'rgba(255,255,255,0.05)',
+        border: '1px solid rgba(255,255,255,0.1)',
+        pointerEvents: 'auto' as const,
+        transformStyle: 'preserve-3d' as const,
+        boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
+    };
 
     return (
         <>
-            {/* Top Right Buttons */}
-            {!isLoggedIn && (
-                <div style={{ position: 'fixed', top: '2rem', right: '2.5rem', zIndex: 1000, display: 'flex', gap: '1rem', pointerEvents: 'auto' }}>
-                    <button 
-                        onClick={() => navigate('/login')}
-                        style={{ padding: '0.6rem 1.2rem', fontSize: '0.9rem', borderRadius: '2rem', background: '#fff', color: '#000', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}
-                    >
-                        Sign In
-                    </button>
-                    <button 
-                        onClick={() => navigate('/signup')}
-                        style={{ padding: '0.6rem 1.2rem', fontSize: '0.9rem', borderRadius: '2rem', background: 'linear-gradient(135deg, var(--accent), #88cc00)', color: '#000', fontWeight: 'bold', border: 'none', cursor: 'pointer' }}
-                    >
-                        Sign Up
-                    </button>
-                </div>
-            )}
+            {/* ── Effect 5: Floating Background Orbs (behind everything) ──────── */}
+            <FloatingOrbs />
 
-            {/* Fixed Background Canvas playing the GIF frames */}
+            {/* Top Right Buttons (Hidden when modal open) */}
+            <AnimatePresence>
+                {!isLoggedIn && !isContactOpen && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20 }}
+                        style={{ position: 'fixed', top: '2rem', right: '2.5rem', zIndex: 1000, display: 'flex', gap: '1rem', pointerEvents: 'auto' }}
+                    >
+                        <button
+                            onClick={() => navigate('/login')}
+                            style={{ padding: '0.6rem 1.4rem', fontSize: '0.9rem', borderRadius: '3rem', background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(10px)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)', cursor: 'pointer', transition: 'all 0.3s' }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                        >
+                            Sign In
+                        </button>
+                        <button
+                            onClick={() => navigate('/signup')}
+                            style={{ padding: '0.6rem 1.4rem', fontSize: '0.9rem', borderRadius: '3rem', background: 'linear-gradient(135deg, var(--accent), #88cc00)', color: '#000', fontWeight: 'bold', border: 'none', cursor: 'pointer', boxShadow: '0 4px 15px rgba(204,255,0,0.3)' }}
+                        >
+                            Sign Up
+                        </button>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Contact Details Modal */}
+            <AnimatePresence>
+                {isContactOpen && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        onClick={() => setIsContactOpen(false)}
+                        style={{
+                            position: 'fixed', inset: 0, zIndex: 9999,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)',
+                            pointerEvents: 'auto'
+                        }}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.9, y: 20 }}
+                            animate={{ scale: 1, y: 0 }}
+                            exit={{ scale: 0.9, y: 20 }}
+                            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                            onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside
+                            style={{
+                                background: 'rgba(20, 20, 20, 0.8)',
+                                border: '1px solid rgba(255,255,255,0.15)',
+                                borderRadius: '24px',
+                                padding: '3rem',
+                                width: '90%',
+                                maxWidth: '450px',
+                                position: 'relative',
+                                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)'
+                            }}
+                        >
+                            <button
+                                onClick={() => setIsContactOpen(false)}
+                                style={{
+                                    position: 'absolute', top: '1.5rem', right: '1.5rem',
+                                    background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.5)',
+                                    cursor: 'pointer', padding: '0.5rem', display: 'flex'
+                                }}
+                                onMouseEnter={e => e.currentTarget.style.color = '#fff'}
+                                onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.5)'}
+                            >
+                                <X size={24} />
+                            </button>
+
+                            <h3 style={{ fontSize: '2rem', fontFamily: "'Instrument Serif', serif", color: '#fff', marginBottom: '0.5rem', fontWeight: 'normal' }}>Get in Touch</h3>
+                            <p style={{ color: 'rgba(255,255,255,0.6)', fontFamily: "'Inter', sans-serif", marginBottom: '2rem', fontSize: '0.95rem' }}>
+                                Have questions or want to collaborate? I'd love to hear from you.
+                            </p>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                {/* Email Field */}
+                                <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', padding: '1rem 1.2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                        <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.2rem' }}>Email</span>
+                                        <a href="mailto:nischay.bahl.11681@gmail.com" style={{ color: '#fff', textDecoration: 'none', fontFamily: "'Inter', sans-serif", fontSize: '0.95rem' }}>
+                                            nischay.bahl.11681@gmail.com
+                                        </a>
+                                    </div>
+                                    <button
+                                        onClick={() => copyToClipboard('nischay.bahl.11681@gmail.com', 'email')}
+                                        style={{ background: 'rgba(255,255,255,0.1)', border: 'none', padding: '0.6rem', borderRadius: '8px', color: '#fff', cursor: 'pointer', transition: '0.2s' }}
+                                    >
+                                        {copiedEmail ? <Check size={18} color="var(--accent)" /> : <Copy size={18} />}
+                                    </button>
+                                </div>
+
+                                {/* Phone Field */}
+                                <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', padding: '1rem 1.2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                        <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '0.2rem' }}>Phone</span>
+                                        <a href="tel:9111033550" style={{ color: '#fff', textDecoration: 'none', fontFamily: "'Inter', sans-serif", fontSize: '0.95rem' }}>
+                                            +91 91110 33550
+                                        </a>
+                                    </div>
+                                    <button
+                                        onClick={() => copyToClipboard('9111033550', 'phone')}
+                                        style={{ background: 'rgba(255,255,255,0.1)', border: 'none', padding: '0.6rem', borderRadius: '8px', color: '#fff', cursor: 'pointer', transition: '0.2s' }}
+                                    >
+                                        {copiedPhone ? <Check size={18} color="var(--accent)" /> : <Copy size={18} />}
+                                    </button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* ── Video Background ─────────────────────────────────────────────── */}
             <div style={{ position: 'fixed', inset: 0, zIndex: 0, background: '#000', overflow: 'hidden' }}>
-                <motion.div style={{ y: yOffset, width: '100%', height: '100%', opacity: 0.6 }}>
-                    <canvas
-                        ref={canvasRef}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    />
+                <motion.div style={{ y: yOffset, scale: videoScale, width: '100%', height: '100%' }}>
+                    {/* Dark Overlay for premium readability */}
+                    <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1 }}></div>
+                    <video
+                        ref={videoRef}
+                        muted
+                        playsInline
+                        style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover',
+                            opacity: 1,
+                            display: 'block',
+                        }}
+                    >
+                        <source src="/intro-bg.mp4" type="video/mp4" />
+                    </video>
                 </motion.div>
             </div>
 
-            {/* Scroll Container */}
+            {/* ── Scroll Container ─────────────────────────────────────────────── */}
             <div ref={containerRef} style={{ height: '1200vh', position: 'relative', zIndex: 1 }}>
 
                 <div style={{ position: 'sticky', top: 0, height: '100vh', width: '100%', overflow: 'hidden', pointerEvents: 'none' }}>
-                    
+
                     {/* Text Overlays */}
-                <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <motion.div
-                        style={{ opacity: section1Opacity, textAlign: 'center', padding: '0 1rem' }}
-                    >
-                        <h1 style={{ fontSize: 'clamp(4rem, 8vw, 8rem)', fontFamily: "'Instrument Serif', serif", fontWeight: 'normal', color: '#fff', marginBottom: '1rem', lineHeight: '1' }}>
-                            Welcome to CampX
-                        </h1>
-                        <p style={{ fontSize: 'clamp(1.2rem, 2vw, 1.5rem)', color: 'rgba(255,255,255,0.8)', fontFamily: "'Inter', sans-serif" }}>
-                            Where education defies gravity
-                        </p>
-                    </motion.div>
+                    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
 
-                    <motion.div
-                        style={{ opacity: section2Opacity, textAlign: 'left', padding: '0 2rem', maxWidth: '800px', marginLeft: 'max(5%, 4rem)', width: '100%' }}
-                    >
-                        <h2 style={{ fontSize: 'clamp(3rem, 6vw, 6rem)', fontFamily: "'Instrument Serif', serif", fontWeight: 'normal', color: '#fff', marginBottom: '1rem', lineHeight: '1.1' }}>
-                            Crafted to Perfection
-                        </h2>
-                        <p style={{ fontSize: 'clamp(1rem, 1.5vw, 1.2rem)', color: 'rgba(255,255,255,0.7)', fontFamily: "'Inter', sans-serif", maxWidth: '400px' }}>
-                            From seamless interfaces to groundbreaking innovations, excellence permeates every interaction.
-                        </p>
-                    </motion.div>
+                        {/* ── Section 1: Main Hero with CTAs ────────────────────────────── */}
+                        <motion.div style={{ opacity: section1Opacity, y: section1Y, textAlign: 'center', padding: '0 1rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                            <div
+                                ref={tiltRef1}
+                                onMouseMove={onMM1}
+                                onMouseLeave={onML1}
+                                onMouseEnter={onME1}
+                                style={{ ...GlassCardStyle, padding: '3rem 4rem', maxWidth: '800px' }}
+                            >
+                                <h1 style={{ fontSize: 'clamp(3.5rem, 6vw, 6rem)', fontFamily: "'Instrument Serif', serif", fontWeight: 'normal', color: '#fff', marginBottom: '1.5rem', lineHeight: '1.05' }}>
+                                    Turn Your Campus Life Into a Smarter Experience
+                                </h1>
+                                <p style={{ fontSize: 'clamp(1.1rem, 1.5vw, 1.25rem)', color: 'rgba(255,255,255,0.7)', fontFamily: "'Inter', sans-serif", lineHeight: '1.6', marginBottom: '2.5rem', maxWidth: '600px', marginInline: 'auto' }}>
+                                    Your all-in-one platform for notes, attendance, complaints, and academic growth — built for students who want more.
+                                </p>
 
-                    <motion.div
-                        style={{ opacity: section3Opacity, textAlign: 'right', padding: '0 2rem', maxWidth: '800px', marginRight: 'max(5%, 4rem)', marginLeft: 'auto', width: '100%' }}
-                    >
-                        <h2 style={{ fontSize: 'clamp(3rem, 6vw, 6rem)', fontFamily: "'Instrument Serif', serif", fontWeight: 'normal', color: '#fff', marginBottom: '1rem', lineHeight: '1.1' }}>
-                            Anti-Gravity Platform
-                        </h2>
-                        <p style={{ fontSize: 'clamp(1rem, 1.5vw, 1.2rem)', color: 'rgba(255,255,255,0.7)', fontFamily: "'Inter', sans-serif", marginLeft: 'auto', maxWidth: '400px' }}>
-                            Defying traditional limitations, elevating your academic journey endlessly forward.
-                        </p>
-                    </motion.div>
+                                <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', pointerEvents: 'auto' }}>
+                                    <motion.button
+                                        onClick={() => navigate('/login')}
+                                        whileHover={{ scale: 1.05 }}
+                                        whileTap={{ scale: 0.95 }}
+                                        style={{
+                                            padding: '0.8rem 2rem',
+                                            background: 'linear-gradient(135deg, var(--accent), #88cc00)',
+                                            color: '#000',
+                                            borderRadius: '3rem',
+                                            fontSize: '1.05rem',
+                                            fontWeight: '600',
+                                            cursor: 'pointer',
+                                            border: 'none',
+                                            boxShadow: '0 8px 25px rgba(204,255,0,0.25)',
+                                        }}
+                                    >
+                                        Get Started 🚀
+                                    </motion.button>
 
-                    <motion.div
-                        style={{ opacity: section4Opacity, textAlign: 'center', padding: '0 1rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}
-                    >
-                        <h2 style={{ fontSize: 'clamp(4rem, 8vw, 7rem)', fontFamily: "'Instrument Serif', serif", fontWeight: 'normal', color: '#fff', marginBottom: '2rem', lineHeight: '1.1' }}>
-                            Discover Your Future
-                        </h2>
-                        <motion.button
-                            onClick={() => navigate('/login')}
-                            whileHover={{ scale: 1.05 }}
-                            whileTap={{ scale: 0.95 }}
-                            style={{
-                                padding: '1rem 3rem',
-                                background: 'linear-gradient(135deg, var(--accent), #88cc00)',
-                                color: '#000',
-                                borderRadius: '3rem',
-                                fontSize: '1.2rem',
-                                fontWeight: '600',
-                                pointerEvents: 'auto',
-                                cursor: 'pointer',
-                                border: 'none',
-                                boxShadow: '0 10px 30px rgba(204,255,0,0.3)',
-                                transition: 'shadow 0.3s ease'
-                            }}
-                            onMouseEnter={e => e.currentTarget.style.boxShadow = '0 15px 40px rgba(204,255,0,0.5)'}
-                            onMouseLeave={e => e.currentTarget.style.boxShadow = '0 10px 30px rgba(204,255,0,0.3)'}
+                                    <motion.button
+                                        onClick={() => setIsContactOpen(true)}
+                                        whileHover={{ scale: 1.05, background: 'rgba(255,255,255,0.1)' }}
+                                        whileTap={{ scale: 0.95 }}
+                                        style={{
+                                            padding: '0.8rem 2rem',
+                                            background: 'rgba(255,255,255,0.05)',
+                                            backdropFilter: 'blur(10px)',
+                                            color: '#fff',
+                                            borderRadius: '3rem',
+                                            fontSize: '1.05rem',
+                                            fontWeight: '500',
+                                            cursor: 'pointer',
+                                            border: '1px solid rgba(255,255,255,0.2)',
+                                        }}
+                                    >
+                                        Contact Me
+                                    </motion.button>
+                                </div>
+                            </div>
+                        </motion.div>
+
+                        {/* ── Section 2: Left Glass Card ───────────────────────────────── */}
+                        <motion.div
+                            style={{ opacity: section2Opacity, y: section2Y, textAlign: 'left', padding: '0 2rem', maxWidth: '650px', marginLeft: 'max(5%, 4rem)', width: '100%', position: 'absolute', left: 0 }}
                         >
-                            Enter CampX ➔
-                        </motion.button>
-                        
-                        <p style={{marginTop: '1.5rem', color: 'rgba(255,255,255,0.5)', fontFamily: "'Inter', sans-serif", fontSize: '0.9rem', pointerEvents: 'auto', cursor: 'pointer', textDecoration: 'underline'}} onClick={() => navigate('/home')}>
-                            Explore Public Campus
-                        </p>
-                    </motion.div>
-                </div>
+                            <div
+                                ref={tiltRef2}
+                                onMouseMove={onMM2}
+                                onMouseLeave={onML2}
+                                onMouseEnter={onME2}
+                                style={GlassCardStyle}
+                            >
+                                <h2 style={{ fontSize: 'clamp(3rem, 5vw, 5rem)', fontFamily: "'Instrument Serif', serif", fontWeight: 'normal', color: '#fff', marginBottom: '1rem', lineHeight: '1.1' }}>
+                                    Welcome to CampX
+                                </h2>
+                                <p style={{ fontSize: 'clamp(1.1rem, 1.5vw, 1.3rem)', color: 'rgba(255,255,255,0.85)', fontFamily: "'Inter', sans-serif", marginBottom: '1rem' }}>
+                                    Where students connect, learn, and grow smarter every day.
+                                </p>
+                                <p style={{ fontSize: '0.95rem', color: 'rgba(255,255,255,0.5)', fontFamily: "'Inter', sans-serif", letterSpacing: '0.5px' }}>
+                                    Built to simplify your academic journey.
+                                </p>
+                            </div>
+                        </motion.div>
 
-                {/* Scroll Indicator */}
-                <motion.div
-                    style={{ opacity: scrollIndicatorOpacity, position: 'absolute', bottom: '3rem', left: '50%', transform: 'translateX(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.8rem' }}
-                >
-                    <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.8rem', fontFamily: "'Inter', sans-serif", letterSpacing: '2px', textTransform: 'uppercase' }}>
-                        Scroll to Explore
-                    </p>
-                    <motion.div
-                        animate={{ y: [0, 8, 0] }}
-                        transition={{ repeat: Infinity, duration: 1.5 }}
-                        style={{ width: '24px', height: '40px', border: '2px solid rgba(255,255,255,0.4)', borderRadius: '20px', display: 'flex', justifyContent: 'center', padding: '6px 0' }}
-                    >
-                        <div style={{ width: '4px', height: '8px', background: 'rgba(255,255,255,0.6)', borderRadius: '4px' }} />
-                    </motion.div>
-                </motion.div>
+                        {/* ── Section 3: Middle Section (Right Aligned) ───────────────── */}
+                        <motion.div
+                            style={{ opacity: section3Opacity, y: section3Y, textAlign: 'right', padding: '0 2rem', maxWidth: '650px', marginRight: 'max(5%, 4rem)', width: '100%', position: 'absolute', right: 0 }}
+                        >
+                            <div
+                                ref={tiltRef3}
+                                onMouseMove={onMM3}
+                                onMouseLeave={onML3}
+                                onMouseEnter={onME3}
+                                style={{ ...GlassCardStyle, textAlign: 'left' }} // Keep text left-aligned inside the right-aligned card
+                            >
+                                <h2 style={{ fontSize: 'clamp(2.5rem, 4.5vw, 4.5rem)', fontFamily: "'Instrument Serif', serif", fontWeight: 'normal', color: '#fff', marginBottom: '1rem', lineHeight: '1.1' }}>
+                                    Built for Simplicity.<br />Designed for Impact.
+                                </h2>
+                                <p style={{ fontSize: 'clamp(1rem, 1.3vw, 1.15rem)', color: 'rgba(255,255,255,0.7)', fontFamily: "'Inter', sans-serif", lineHeight: '1.6' }}>
+                                    From organized notes to real-time updates, every feature is crafted to enhance your productivity and reduce academic stress.
+                                </p>
+                            </div>
+                        </motion.div>
+
+                        {/* ── Section 4: Right Section (Center Bottom) ────────────────── */}
+                        <motion.div
+                            style={{ opacity: section4Opacity, y: section4Y, textAlign: 'center', padding: '0 1rem', display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}
+                        >
+                            <div
+                                ref={tiltRef4}
+                                onMouseMove={onMM4}
+                                onMouseLeave={onML4}
+                                onMouseEnter={onME4}
+                                style={{ ...GlassCardStyle, maxWidth: '700px' }}
+                            >
+                                <h2 style={{ fontSize: 'clamp(3rem, 5vw, 5rem)', fontFamily: "'Instrument Serif', serif", fontWeight: 'normal', color: '#fff', marginBottom: '1.5rem', lineHeight: '1.1' }}>
+                                    Your Smart Academic Companion
+                                </h2>
+                                <p style={{ fontSize: 'clamp(1.1rem, 1.5vw, 1.25rem)', color: 'rgba(255,255,255,0.7)', fontFamily: "'Inter', sans-serif", marginBottom: '2.5rem' }}>
+                                    Empowering students with tools that make learning efficient and effortless.
+                                </p>
+
+                                <motion.button
+                                    onClick={() => navigate('/login')}
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
+                                    style={{
+                                        padding: '1rem 3rem',
+                                        background: '#fff',
+                                        color: '#000',
+                                        borderRadius: '3rem',
+                                        fontSize: '1.1rem',
+                                        fontWeight: '600',
+                                        pointerEvents: 'auto',
+                                        cursor: 'pointer',
+                                        border: 'none',
+                                        boxShadow: '0 10px 30px rgba(255,255,255,0.2)',
+                                    }}
+                                >
+                                    Experience CampX ➔
+                                </motion.button>
+                            </div>
+                        </motion.div>
+                    </div>
+
+                    {/* Scroll Indicator (Hidden when modal open) */}
+                    <AnimatePresence>
+                        {!isContactOpen && (
+                            <motion.div
+                                style={{ opacity: scrollIndicatorOpacity }}
+                                exit={{ opacity: 0 }}
+                                className="scroll-indicator-wrapper"
+                            >
+                                <div style={{ position: 'absolute', bottom: '3rem', left: '50%', transform: 'translateX(-50%)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.8rem' }}>
+                                    <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.75rem', fontFamily: "'Inter', sans-serif", letterSpacing: '2px', textTransform: 'uppercase' }}>
+                                        Scroll
+                                    </p>
+                                    <motion.div
+                                        animate={{ y: [0, 8, 0] }}
+                                        transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+                                        style={{ width: '22px', height: '36px', border: '2px solid rgba(255,255,255,0.3)', borderRadius: '20px', display: 'flex', justifyContent: 'center', padding: '6px 0' }}
+                                    >
+                                        <div style={{ width: '4px', height: '6px', background: 'rgba(255,255,255,0.6)', borderRadius: '4px' }} />
+                                    </motion.div>
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
             </div>
-        </div>
         </>
     );
 }

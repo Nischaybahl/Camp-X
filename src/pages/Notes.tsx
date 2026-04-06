@@ -79,8 +79,8 @@ export default function Notes() {
     allSubjects.forEach((s, i) => { subjectColors[s] = palette[i % palette.length]; });
 
     return (
-        <main className="main-content" style={{ zIndex: 3, pointerEvents: 'auto', marginTop: '2rem', paddingBottom: '4rem' }}>
-            <h1 className="main-title fade-in-up">Digital <span>Notes</span></h1>
+        <main className="main-content" style={{ zIndex: 3, pointerEvents: 'auto', marginTop: '2rem' }}>
+            <h1 className="main-title fade-in-up">Class <span>Notes</span></h1>
             <p className="main-desc fade-in-up delay-1" style={{ margin: '0 auto 2rem auto' }}>
                 Store, search, and organize your class notes in one place.
             </p>

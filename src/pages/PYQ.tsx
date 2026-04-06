@@ -1,4 +1,4 @@
-import { FileText, Download, Calendar } from 'lucide-react';
+import { FileText, Download, Calendar, Search } from 'lucide-react';
 
 export default function PYQ() {
   const papers = [
@@ -10,7 +10,7 @@ export default function PYQ() {
 
   return (
     <main className="main-content" style={{ zIndex: 3, pointerEvents: 'auto', marginTop: '2rem' }}>
-      <h1 className="main-title fade-in-up">Previous Year <span>Questions</span></h1>
+      <h1 className="main-title fade-in-up" style={{ fontSize: '3.5rem' }}>Previous Year <span>Questions</span></h1>
       <p className="main-desc fade-in-up delay-1" style={{ margin: '0 auto 3rem auto' }}>
         Ace your exams by practicing with past papers from previous semesters.
       </p>
