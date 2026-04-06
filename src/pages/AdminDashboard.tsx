@@ -106,8 +106,8 @@ const AdminDashboard: React.FC = () => {
   };
 
   return (
-    <div className="admin-layout">
-      <aside className="admin-sidebar">
+    <div className="admin-layout" style={{ pointerEvents: 'auto' }}>
+      <aside className="admin-sidebar" style={{ pointerEvents: 'auto', zIndex: 50 }}>
         <div className="logo">CampX Admin</div>
         <nav className="sidebar-nav">
           <NavItem active={activeTab === 'overview'} onClick={() => setActiveTab('overview')} icon={<LayoutDashboard size={20} />} label="Overview" />
