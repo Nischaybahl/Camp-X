@@ -316,7 +316,7 @@ export default function Login() {
                         </div>
 
                         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                            <a href="#" style={{ color: 'var(--accent)', fontSize: '0.85rem', textDecoration: 'none' }}>Forgot password?</a>
+                            <Link to="/forgot-password" style={{ color: 'var(--accent)', fontSize: '0.85rem', textDecoration: 'none' }}>Forgot password?</Link>
                         </div>
 
                         <button type="submit" disabled={isLoading} style={{

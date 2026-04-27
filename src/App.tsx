@@ -18,6 +18,8 @@ import AdminDashboard from './pages/AdminDashboard';
 import Handwriting from './pages/Handwriting';
 import ResumeAnalyzer from './pages/ResumeAnalyzer';
 import ChatbotWidget from './components/ChatbotWidget';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const user = localStorage.getItem('campx_current_user');
@@ -212,6 +214,8 @@ function MainApp() {
           <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<SignUp />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password/:token" element={<ResetPassword />} />
         </Routes>
       </div>
     </div>
