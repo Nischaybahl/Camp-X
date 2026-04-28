@@ -9,7 +9,6 @@ export interface Complaint {
     subType: string;
     description: string;
     priority: 'low' | 'medium' | 'high' | 'urgent';
-    status: 'pending' | 'in-progress' | 'resolved';
     anonymous: boolean;
     imageUrl?: string;
     trackingId: string;
@@ -82,16 +81,9 @@ const PRIORITIES = [
     { value: 'urgent', label: 'Urgent', color: '#ff6b6b', bg: 'rgba(255,107,107,0.15)' },
 ];
 
-const STATUSES = [
-    { value: 'pending',     label: 'Pending',     color: '#ffd43b', bg: 'rgba(255,212,59,0.12)' },
-    { value: 'in-progress', label: 'In Progress', color: '#4dabf7', bg: 'rgba(77,171,247,0.12)' },
-    { value: 'resolved',    label: 'Resolved',    color: '#51cf66', bg: 'rgba(81,207,102,0.12)' },
-];
-
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const getCategoryMeta = (cat: string) => CATEGORIES.find(c => c.value === cat) ?? { label: cat, color: 'var(--accent)', icon: '📝' };
 const getPriorityMeta = (p: string) => PRIORITIES.find(x => x.value === p) ?? PRIORITIES[0];
-const getStatusMeta   = (s: string) => STATUSES.find(x => x.value === s)   ?? STATUSES[0];
 
 function generateTrackingId(): string {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -133,12 +125,11 @@ export default function CampusComplaint() {
     const [subType, setSubType] = useState(CATEGORY_SUBTYPES['infra'][0]);
     const [description, setDescription] = useState('');
     const [priority, setPriority] = useState<'low'|'medium'|'high'|'urgent'>('medium');
-    const [status, setStatus] = useState<'pending'|'in-progress'|'resolved'>('pending');
     const [anonymous, setAnonymous] = useState(false);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
 
     // Filters
-    const [filterStatus, setFilterStatus] = useState<'all'|'pending'|'in-progress'|'resolved'>('all');
+    const [filterActive, setFilterActive] = useState<'all'|'active'|'completed'>('all');
     const [filterCategory, setFilterCategory] = useState<string>('all');
     const [filterPriority, setFilterPriority] = useState<string>('all');
     const [showCopied, setShowCopied] = useState<string | null>(null);
@@ -169,7 +160,7 @@ export default function CampusComplaint() {
 
     const resetForm = () => {
         setName(''); setCategory('infra'); setSubType(CATEGORY_SUBTYPES['infra'][0]);
-        setDescription(''); setPriority('medium'); setStatus('pending');
+        setDescription(''); setPriority('medium');
         setAnonymous(false); setImagePreview(null); setEditingId(null); setShowForm(false);
     };
 
@@ -180,7 +171,7 @@ export default function CampusComplaint() {
         if (editingId) {
             const existing = complaints.find(c => c.id === editingId);
             if (existing) {
-                const updated = { ...existing, name: anonymous ? 'Anonymous' : name, category, subType, description, priority, status, anonymous, imageUrl: imagePreview ?? existing.imageUrl };
+                const updated = { ...existing, name: anonymous ? 'Anonymous' : name, category, subType, description, priority, anonymous, imageUrl: imagePreview ?? existing.imageUrl };
                 setComplaints(prev => prev.map(c => c.id === editingId ? updated : c));
                 updateItem('complaint', editingId, updated, 'campusComplaints', complaints);
             }
@@ -188,7 +179,7 @@ export default function CampusComplaint() {
             const newComplaint: Complaint = {
                 id: Date.now().toString(),
                 name: anonymous ? 'Anonymous' : name,
-                category, subType, description, priority, status, anonymous,
+                category, subType, description, priority, anonymous,
                 imageUrl: imagePreview ?? undefined,
                 trackingId: generateTrackingId(),
                 completed: false,
@@ -207,7 +198,6 @@ export default function CampusComplaint() {
         setSubType(c.subType ?? CATEGORY_SUBTYPES[c.category]?.[0] ?? '');
         setDescription(c.description);
         setPriority(c.priority ?? 'medium');
-        setStatus(c.status ?? 'pending');
         setAnonymous(c.anonymous ?? false);
         setImagePreview(c.imageUrl ?? null);
         setEditingId(c.id);
@@ -220,13 +210,7 @@ export default function CampusComplaint() {
         deleteItem('complaint', id, 'campusComplaints', complaints);
     };
 
-    const handleStatusChange = (id: string, newStatus: 'pending'|'in-progress'|'resolved') => {
-        const c = complaints.find(comp => comp.id === id);
-        if (!c) return;
-        const updated = { ...c, status: newStatus, completed: newStatus === 'resolved' };
-        setComplaints(prev => prev.map(comp => comp.id === id ? updated : comp));
-        updateItem('complaint', id, updated, 'campusComplaints', complaints);
-    };
+
 
     const copyTrackingId = (tid: string) => {
         navigator.clipboard.writeText(tid).catch(() => {});
@@ -236,7 +220,8 @@ export default function CampusComplaint() {
 
     // Filtering
     const filtered = complaints.filter(c => {
-        if (filterStatus !== 'all' && (c.status ?? (c.completed ? 'resolved' : 'pending')) !== filterStatus) return false;
+        if (filterActive === 'active' && c.completed) return false;
+        if (filterActive === 'completed' && !c.completed) return false;
         if (filterCategory !== 'all' && c.category !== filterCategory) return false;
         if (filterPriority !== 'all' && (c.priority ?? 'medium') !== filterPriority) return false;
         return true;
@@ -262,16 +247,16 @@ export default function CampusComplaint() {
                     <Plus size={18} /> Add Complaint
                 </button>
 
-                {/* Status filter pills */}
+                {/* Active/Completed filter pills */}
                 <div style={{ display: 'flex', gap: '0.4rem', background: 'var(--glass)', borderRadius: '30px', padding: '0.3rem', border: '1px solid var(--glass-border)' }}>
-                    {(['all', 'pending', 'in-progress', 'resolved'] as const).map(f => (
-                        <button key={f} onClick={() => setFilterStatus(f)} style={{
+                    {(['all', 'active', 'completed'] as const).map(f => (
+                        <button key={f} onClick={() => setFilterActive(f)} style={{
                             padding: '0.45rem 1rem', borderRadius: '20px', border: 'none', cursor: 'pointer',
-                            background: filterStatus === f ? 'var(--accent)' : 'transparent',
-                            color: filterStatus === f ? '#000' : 'var(--secondary)',
+                            background: filterActive === f ? 'var(--accent)' : 'transparent',
+                            color: filterActive === f ? '#000' : 'var(--secondary)',
                             fontWeight: 600, fontSize: '0.8rem', transition: 'all 0.3s', textTransform: 'capitalize',
                             whiteSpace: 'nowrap',
-                        }}>{f === 'all' ? 'All' : f.replace('-', ' ')}</button>
+                        }}>{f.charAt(0).toUpperCase() + f.slice(1)}</button>
                     ))}
                 </div>
             </div>
@@ -402,28 +387,18 @@ export default function CampusComplaint() {
                                 </select>
                             </div>
 
-                            {/* Priority + Status in 2 cols */}
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                <div>
-                                    <label style={labelStyle}>Priority</label>
-                                    <select value={priority} onChange={e => setPriority(e.target.value as 'low'|'medium'|'high'|'urgent')} style={{
-                                        ...inputStyle,
-                                        color: getPriorityMeta(priority).color,
-                                        borderColor: getPriorityMeta(priority).color + '55',
-                                    }}>
-                                        {PRIORITIES.map(p => (
-                                            <option key={p.value} value={p.value} style={{ background: '#1a1a2e', color: '#fff' }}>{p.label}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label style={labelStyle}>Status</label>
-                                    <select value={status} onChange={e => setStatus(e.target.value as 'pending'|'in-progress'|'resolved')} style={inputStyle}>
-                                        {STATUSES.map(s => (
-                                            <option key={s.value} value={s.value} style={{ background: '#1a1a2e', color: '#fff' }}>{s.label}</option>
-                                        ))}
-                                    </select>
-                                </div>
+                            {/* Priority */}
+                            <div>
+                                <label style={labelStyle}>Priority</label>
+                                <select value={priority} onChange={e => setPriority(e.target.value as 'low'|'medium'|'high'|'urgent')} style={{
+                                    ...inputStyle,
+                                    color: getPriorityMeta(priority).color,
+                                    borderColor: getPriorityMeta(priority).color + '55',
+                                }}>
+                                    {PRIORITIES.map(p => (
+                                        <option key={p.value} value={p.value} style={{ background: '#1a1a2e', color: '#fff' }}>{p.label}</option>
+                                    ))}
+                                </select>
                             </div>
 
                             {/* Description */}
@@ -484,10 +459,9 @@ export default function CampusComplaint() {
                 maxWidth: '900px', margin: '0 auto 2rem auto',
             }}>
                 {[
-                    { label: 'Total', val: complaints.length, color: 'var(--accent)' },
-                    { label: 'Pending', val: complaints.filter(c => (c.status ?? 'pending') === 'pending').length, color: '#ffd43b' },
-                    { label: 'In Progress', val: complaints.filter(c => (c.status ?? '') === 'in-progress').length, color: '#4dabf7' },
-                    { label: 'Resolved', val: complaints.filter(c => (c.status ?? (c.completed ? 'resolved' : 'pending')) === 'resolved').length, color: '#51cf66' },
+                    { label: 'Total',     val: complaints.length,                              color: 'var(--accent)' },
+                    { label: 'Active',    val: complaints.filter(c => !c.completed).length,     color: '#ffd43b' },
+                    { label: 'Resolved',  val: complaints.filter(c => c.completed).length,      color: '#51cf66' },
                 ].map(stat => (
                     <div key={stat.label} style={{
                         ...glassCard, padding: '1rem 1.5rem', display: 'flex', flexDirection: 'column',
@@ -520,15 +494,14 @@ export default function CampusComplaint() {
                     </div>
                 ) : (
                     filtered.map(c => {
-                        const catMeta   = getCategoryMeta(c.category);
-                        const priMeta   = getPriorityMeta(c.priority ?? 'medium');
-                        const statMeta  = getStatusMeta(c.status ?? (c.completed ? 'resolved' : 'pending'));
-                        const isOwner   = currentUser.email && c.authorEmail === currentUser.email;
+                        const catMeta = getCategoryMeta(c.category);
+                        const priMeta = getPriorityMeta(c.priority ?? 'medium');
+                        const isOwner = currentUser.email && c.authorEmail === currentUser.email;
 
                         return (
                             <div key={c.id} style={{
                                 ...glassCard,
-                                opacity: statMeta.value === 'resolved' ? 0.7 : 1,
+                                opacity: c.completed ? 0.65 : 1,
                                 borderLeft: `3px solid ${catMeta.color}`,
                                 display: 'flex', flexDirection: 'column', gap: '0.8rem',
                             }}
@@ -555,11 +528,12 @@ export default function CampusComplaint() {
                                                 background: priMeta.bg, color: priMeta.color,
                                             }}>⚡ {priMeta.label}</span>
 
-                                            {/* Status badge */}
-                                            <span style={{
-                                                padding: '0.2rem 0.65rem', borderRadius: '10px', fontSize: '0.72rem', fontWeight: 700,
-                                                background: statMeta.bg, color: statMeta.color,
-                                            }}>● {statMeta.label}</span>
+                                            {c.completed && (
+                                                <span style={{
+                                                    padding: '0.2rem 0.65rem', borderRadius: '10px', fontSize: '0.72rem', fontWeight: 700,
+                                                    background: 'rgba(81,207,102,0.15)', color: '#51cf66',
+                                                }}>✓ Resolved</span>
+                                            )}
                                         </div>
 
                                         {/* Sub-type */}
@@ -573,21 +547,6 @@ export default function CampusComplaint() {
                                     {/* Actions */}
                                     {(currentUser.isAdmin || isOwner) && (
                                         <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
-                                            {currentUser.isAdmin && (
-                                                <select
-                                                    value={c.status ?? (c.completed ? 'resolved' : 'pending')}
-                                                    onChange={e => handleStatusChange(c.id, e.target.value as 'pending'|'in-progress'|'resolved')}
-                                                    style={{
-                                                        ...inputStyle, padding: '0.4rem 0.6rem', width: 'auto', fontSize: '0.78rem',
-                                                        color: statMeta.color, borderColor: statMeta.color + '55',
-                                                    }}
-                                                    onClick={e => e.stopPropagation()}
-                                                >
-                                                    {STATUSES.map(s => (
-                                                        <option key={s.value} value={s.value} style={{ background: '#1a1a2e', color: '#fff' }}>{s.label}</option>
-                                                    ))}
-                                                </select>
-                                            )}
                                             <button onClick={() => handleEdit(c)} style={{
                                                 background: 'rgba(255,255,255,0.06)', border: '1px solid var(--glass-border)',
                                                 color: 'var(--primary)', cursor: 'pointer', padding: '0.45rem', borderRadius: '8px',
