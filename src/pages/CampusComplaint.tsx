@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Trash2, Edit3, CheckCircle, Circle, X, AlertTriangle, Shield, Upload, Image, Clock, Tag, Filter, Hash } from 'lucide-react';
+import { Plus, Trash2, Edit3, X, AlertTriangle, Shield, Upload, Clock, Tag, Filter, Hash } from 'lucide-react';
 import { fetchItems, createItem, updateItem, deleteItem } from '../utils/apiClient';
 
 export interface Complaint {
@@ -541,7 +541,7 @@ export default function CampusComplaint() {
                                         {/* Name + category */}
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
                                             {c.anonymous && (
-                                                <Shield size={14} color="var(--accent)" title="Anonymous" />
+                                                <Shield size={14} color="var(--accent)" aria-label="Anonymous" />
                                             )}
                                             <h3 style={{ fontSize: '1.05rem', color: 'var(--primary)', margin: 0 }}>{c.name}</h3>
                                             <span style={{
