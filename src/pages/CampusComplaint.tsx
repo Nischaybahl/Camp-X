@@ -13,6 +13,7 @@ export interface Complaint {
     imageUrl?: string;
     trackingId: string;
     completed: boolean;
+    completedAt?: number;
     createdAt: string;
     authorEmail?: string;
     [key: string]: unknown;
@@ -139,7 +140,13 @@ export default function CampusComplaint() {
 
     useEffect(() => {
         fetchItems<Complaint>('complaint', 'campusComplaints').then(data => {
-            setComplaints(data);
+            const now = Date.now();
+            const TWENTY_FOUR_H = 24 * 60 * 60 * 1000;
+            // Auto-delete resolved complaints older than 24 hours
+            const toDelete = data.filter(c => c.completed && c.completedAt && (now - c.completedAt) > TWENTY_FOUR_H);
+            toDelete.forEach(c => deleteItem('complaint', c.id, 'campusComplaints', data));
+            const alive = data.filter(c => !(c.completed && c.completedAt && (now - c.completedAt) > TWENTY_FOUR_H));
+            setComplaints(alive);
             setLoading(false);
         });
     }, []);
@@ -210,7 +217,15 @@ export default function CampusComplaint() {
         deleteItem('complaint', id, 'campusComplaints', complaints);
     };
 
-
+    // Admin: toggle resolved — stores completedAt timestamp for 24h auto-delete
+    const handleToggleResolved = (id: string) => {
+        const c = complaints.find(comp => comp.id === id);
+        if (!c) return;
+        const nowResolved = !c.completed;
+        const updated = { ...c, completed: nowResolved, completedAt: nowResolved ? Date.now() : undefined };
+        setComplaints(prev => prev.map(comp => comp.id === id ? updated : comp));
+        updateItem('complaint', id, updated, 'campusComplaints', complaints);
+    };
 
     const copyTrackingId = (tid: string) => {
         navigator.clipboard.writeText(tid).catch(() => {});
@@ -218,8 +233,17 @@ export default function CampusComplaint() {
         setTimeout(() => setShowCopied(null), 2000);
     };
 
-    // Filtering
-    const filtered = complaints.filter(c => {
+    // ── Access control: normal users see only their own complaints ──
+    const PRIORITY_ORDER: Record<string, number> = { urgent: 0, high: 1, medium: 2, low: 3 };
+
+    const visibleComplaints = currentUser.isAdmin
+        ? [...complaints].sort((a, b) =>
+            (PRIORITY_ORDER[a.priority ?? 'medium'] ?? 2) - (PRIORITY_ORDER[b.priority ?? 'medium'] ?? 2)
+          )
+        : complaints.filter(c => c.authorEmail === currentUser.email);
+
+    // Filtering applied on top of visibility
+    const filtered = visibleComplaints.filter(c => {
         if (filterActive === 'active' && c.completed) return false;
         if (filterActive === 'completed' && !c.completed) return false;
         if (filterCategory !== 'all' && c.category !== filterCategory) return false;
@@ -546,7 +570,22 @@ export default function CampusComplaint() {
 
                                     {/* Actions */}
                                     {(currentUser.isAdmin || isOwner) && (
-                                        <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
+                                        <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0, alignItems: 'center' }}>
+                                            {/* Admin: Mark Resolved / Reopen */}
+                                            {currentUser.isAdmin && (
+                                                <button onClick={() => handleToggleResolved(c.id)} style={{
+                                                    background: c.completed ? 'rgba(81,207,102,0.15)' : 'rgba(255,255,255,0.06)',
+                                                    border: `1px solid ${c.completed ? '#51cf66' : 'var(--glass-border)'}`,
+                                                    color: c.completed ? '#51cf66' : 'var(--secondary)',
+                                                    cursor: 'pointer', padding: '0.3rem 0.7rem', borderRadius: '8px',
+                                                    fontSize: '0.75rem', fontWeight: 700, transition: 'all 0.3s',
+                                                    whiteSpace: 'nowrap',
+                                                }}
+                                                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(81,207,102,0.25)'; e.currentTarget.style.borderColor = '#51cf66'; e.currentTarget.style.color = '#51cf66'; }}
+                                                    onMouseLeave={e => { e.currentTarget.style.background = c.completed ? 'rgba(81,207,102,0.15)' : 'rgba(255,255,255,0.06)'; e.currentTarget.style.borderColor = c.completed ? '#51cf66' : 'var(--glass-border)'; e.currentTarget.style.color = c.completed ? '#51cf66' : 'var(--secondary)'; }}>
+                                                    {c.completed ? '✓ Resolved' : 'Mark Resolved'}
+                                                </button>
+                                            )}
                                             <button onClick={() => handleEdit(c)} style={{
                                                 background: 'rgba(255,255,255,0.06)', border: '1px solid var(--glass-border)',
                                                 color: 'var(--primary)', cursor: 'pointer', padding: '0.45rem', borderRadius: '8px',
