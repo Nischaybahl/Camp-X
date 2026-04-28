@@ -17,7 +17,7 @@ import SignUp from './pages/SignUp';
 import AdminDashboard from './pages/AdminDashboard';
 import Handwriting from './pages/Handwriting';
 import ResumeAnalyzer from './pages/ResumeAnalyzer';
-import ChatbotWidget from './components/ChatbotWidget';
+
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 
@@ -80,23 +80,11 @@ function Navigation({ isLightMode, toggleTheme }: NavigationProps) {
 
       <div className="nav-actions" style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
         <button
+          className="theme-toggle-btn"
           onClick={toggleTheme}
-          style={{
-            background: 'transparent',
-            border: '1px solid var(--glass-border)',
-            color: 'var(--primary)',
-            cursor: 'pointer',
-            padding: '0.5rem',
-            borderRadius: '50%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            transition: 'background 0.3s'
-          }}
-          onMouseEnter={(e) => e.currentTarget.style.background = 'var(--glass)'}
-          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+          aria-label="Toggle theme"
         >
-          {isLightMode ? <Moon size={20} /> : <Sun size={20} />}
+          {isLightMode ? <Moon size={18} /> : <Sun size={18} />}
         </button>
         {isLoggedIn ? (
           <button className="btn-white" onClick={handleLogout} style={{ padding: '0.6rem 1.2rem', fontSize: '0.9rem', borderRadius: '2rem' }}>
@@ -225,7 +213,6 @@ export default function App() {
   return (
     <Router>
       <MainApp />
-      <ChatbotWidget />
     </Router>
   );
 }

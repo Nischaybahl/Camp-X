@@ -2,33 +2,37 @@
   --primary: #ffffff;
   --secondary: rgba(255, 255, 255, 0.6);
   --glass: rgba(255, 255, 255, 0.03);
-  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-border: rgba(255, 255, 255, 0.1);
   --bg-dark: #000000;
   --text-main: #ffffff;
   --accent: #ccff00;
   --glow-center: rgba(255, 255, 255, 0.15);
+  --input-bg: rgba(255, 255, 255, 0.05);
+  --input-color: #ffffff;
+  --modal-bg: rgba(18, 18, 30, 0.99);
+  --card-hover: rgba(255, 255, 255, 0.06);
 }
 
 body.light-mode {
-  --primary: #000000;
-  --secondary: rgba(0, 0, 0, 0.6);
-  --glass: rgba(0, 0, 0, 0.03);
-  --glass-border: rgba(0, 0, 0, 0.08);
-  --bg-dark: #ffffff;
-  --text-main: #000000;
-  --accent: #11aa11;
+  --primary: #111111;
+  --secondary: rgba(0, 0, 0, 0.55);
+  --glass: rgba(255, 255, 255, 0.7);
+  --glass-border: rgba(0, 0, 0, 0.12);
+  --bg-dark: #f4f4f8;
+  --text-main: #111111;
+  --accent: #22a811;
   --glow-center: rgba(0, 0, 0, 0.05);
-  /* a deeper green for light mode contrast */
+  --input-bg: rgba(255, 255, 255, 0.9);
+  --input-color: #111111;
+  --modal-bg: rgba(248, 248, 252, 0.99);
+  --card-hover: rgba(0, 0, 0, 0.04);
 }
 
 body.light-mode .nav-link,
 body.light-mode .partner-logo,
 body.light-mode .logo-container,
 body.light-mode .badge {
-  text-shadow:
-    0 0 10px rgba(255, 255, 255, 0.9),
-    0 0 20px rgba(255, 255, 255, 0.8),
-    0 0 30px rgba(255, 255, 255, 0.6);
+  text-shadow: none;
 }
 
 * {
@@ -116,8 +120,17 @@ h3 {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1.5rem 4rem;
+  padding: 1.2rem 3rem;
   width: 100%;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  background: rgba(0, 0, 0, 0.15);
+  border-bottom: 1px solid var(--glass-border);
+}
+
+body.light-mode .navbar {
+  background: rgba(255, 255, 255, 0.85);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 .logo-container {
@@ -302,10 +315,9 @@ body.light-mode .main-desc {
 }
 
 body.light-mode .btn-white {
-  background: var(--bg-dark);
-  color: #000;
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+  background: #111111;
+  color: #ffffff;
+  border: none;
 }
 
 .btn-white:hover {
@@ -496,6 +508,93 @@ body.light-mode .btn-white:hover {
     width: 95% !important;
     padding: 2rem 1rem !important;
   }
+}
+
+/* ─── Global input / select / textarea fixes ────────────────────────────────── */
+input, select, textarea {
+  background: var(--input-bg, rgba(255,255,255,0.05));
+  color: var(--input-color, #fff);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  font-family: 'Inter', sans-serif;
+}
+
+body.light-mode input,
+body.light-mode select,
+body.light-mode textarea {
+  background: #ffffff !important;
+  color: #111111 !important;
+  border-color: rgba(0,0,0,0.15) !important;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+
+body.light-mode select option {
+  background: #ffffff;
+  color: #111111;
+}
+
+/* ─── Glass card light-mode fix ──────────────────────────────────────────────── */
+body.light-mode [style*="var(--glass)"],
+body.light-mode .glass-card {
+  background: rgba(255,255,255,0.85) !important;
+  border-color: rgba(0,0,0,0.1) !important;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.08);
+}
+
+/* ─── Modal overlay in light mode ───────────────────────────────────────────── */
+body.light-mode [style*="rgba(18,18,30"],
+body.light-mode [style*="rgba(10,10,22"] {
+  background: var(--modal-bg) !important;
+}
+
+/* ─── Theme toggle button ───────────────────────────────────────────────────── */
+.theme-toggle-btn {
+  background: transparent;
+  border: 1px solid var(--glass-border);
+  color: var(--primary);
+  cursor: pointer;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.3s, border-color 0.3s, color 0.3s;
+  flex-shrink: 0;
+}
+
+.theme-toggle-btn:hover {
+  background: var(--glass);
+  border-color: var(--accent);
+}
+
+body.light-mode .theme-toggle-btn {
+  border-color: rgba(0,0,0,0.2);
+  color: #111;
+  background: rgba(255,255,255,0.9);
+}
+
+body.light-mode .theme-toggle-btn:hover {
+  background: rgba(0,0,0,0.06);
+  border-color: var(--accent);
+}
+
+/* ─── Anonymous toggle in light mode ────────────────────────────────────────── */
+body.light-mode .glass-anon-toggle {
+  background: rgba(255,255,255,0.9) !important;
+  border-color: rgba(0,0,0,0.12) !important;
+}
+
+/* ─── Complaint card in light mode ──────────────────────────────────────────── */
+body.light-mode .complaint-card {
+  background: rgba(255,255,255,0.9);
+  border-color: rgba(0,0,0,0.1);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+}
+
+body.light-mode .complaint-card:hover {
+  background: rgba(255,255,255,1) !important;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.1) !important;
 }
 
 @media (max-width: 480px) {
