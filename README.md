@@ -9,7 +9,8 @@ A next-generation college companion platform designed to centralize student reso
 - 🧾 Lost and Found System  
 - 📅 Attendance Tracking  
 - 🏫 College Updates & Notices  
-- 👨‍🎓 Student-Friendly Dashboard  
+- 👨‍🎓 Student-Friendly Dashboard
+- Admin panel
 
 ## 🛠️ Tech Stack
 
