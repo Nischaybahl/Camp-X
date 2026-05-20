@@ -5,9 +5,7 @@ A next-generation college companion platform designed to centralize student reso
 ## ✨ Features
 
 - 📢 Campus Complaints Portal  
-- 📚 Notes & Academic Resources  
-- 🧾 Lost and Found System  
-- 📅 Attendance Tracking  
+- 📚 Notes & Academic Resources   
 - 🏫 College Updates & Notices  
 - 👨‍🎓 Student-Friendly Dashboard
 - Admin panel
@@ -37,4 +35,4 @@ Used by 100+ active users and built as a real-world student solution.
 
 ## 👨‍💻 Developer
 
-Built by Nischay Bahl
+Built by  Priyanshu Thakur Nischay Bahl Abhijeet Thakur
