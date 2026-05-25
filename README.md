@@ -16,7 +16,7 @@ A next-generation college companion platform designed to centralize student reso
 - TypeScript  
 - Vite  
 - Firebase / Backend APIs  
-- CSS / Tailwind (if used)
+- CSS / Tailwind 
 
 ## 🎯 Purpose
 
