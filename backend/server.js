@@ -36,6 +36,16 @@ const userSchema = new mongoose.Schema({
 });
 const User = mongoose.model('User', userSchema);
 
+// OTP Schema for password reset
+const otpSchema = new mongoose.Schema({
+    email: { type: String, required: true, index: true },
+    otp: { type: String, required: true },
+    attempts: { type: Number, default: 0 },
+    verified: { type: Boolean, default: false },
+    createdAt: { type: Date, default: Date.now, expires: 300 } // Auto-delete after 5 minutes (TTL index)
+});
+const OTP = mongoose.model('OTP', otpSchema);
+
 // Generic Item Schema (complaints, attendance, notes)
 const itemSchema = new mongoose.Schema({
     type: { type: String, required: true, index: true },
@@ -52,6 +62,119 @@ const supportSchema = new mongoose.Schema({
     timestamp: { type: String, required: true }
 });
 const SupportMessage = mongoose.model('SupportMessage', supportSchema);
+
+// ========================
+// GMAIL TRANSPORTER
+// ========================
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: process.env.GMAIL_USER,
+        pass: process.env.GMAIL_APP_PASSWORD
+    }
+});
+
+// In-memory rate limiter for OTP requests (IP + email based)
+const otpRateLimiter = new Map();
+const OTP_COOLDOWN_MS = 60000; // 60 seconds between OTP requests
+
+function checkOtpRateLimit(key) {
+    const now = Date.now();
+    const lastRequest = otpRateLimiter.get(key);
+    if (lastRequest && (now - lastRequest) < OTP_COOLDOWN_MS) {
+        const remainingSec = Math.ceil((OTP_COOLDOWN_MS - (now - lastRequest)) / 1000);
+        return { allowed: false, remainingSec };
+    }
+    otpRateLimiter.set(key, now);
+    // Cleanup old entries every 100 entries
+    if (otpRateLimiter.size > 100) {
+        for (const [k, v] of otpRateLimiter.entries()) {
+            if (now - v > OTP_COOLDOWN_MS * 5) otpRateLimiter.delete(k);
+        }
+    }
+    return { allowed: true };
+}
+
+// Generate secure 6-digit OTP
+function generateOTP() {
+    return crypto.randomInt(100000, 999999).toString();
+}
+
+// Premium CampX OTP email template
+function getOtpEmailTemplate(otp, userName) {
+    return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body style="margin: 0; padding: 0; background-color: #0a0a0a; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color: #0a0a0a; padding: 40px 20px;">
+            <tr>
+                <td align="center">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width: 520px; background: linear-gradient(145deg, #151515, #1a1a1a); border-radius: 20px; border: 1px solid #2a2a2a; overflow: hidden;">
+                        
+                        <!-- Header with gradient accent -->
+                        <tr>
+                            <td style="background: linear-gradient(135deg, #1a1a1a 0%, #0d0d0d 100%); padding: 40px 40px 30px; text-align: center; border-bottom: 1px solid #222;">
+                                <div style="font-size: 32px; font-weight: 800; letter-spacing: -1px;">
+                                    <span style="color: #ffffff;">Camp</span><span style="color: #ccff00;">X</span>
+                                </div>
+                                <div style="color: #666; font-size: 12px; text-transform: uppercase; letter-spacing: 2px; margin-top: 8px;">Password Recovery</div>
+                            </td>
+                        </tr>
+
+                        <!-- Body -->
+                        <tr>
+                            <td style="padding: 40px;">
+                                <p style="color: #e0e0e0; font-size: 16px; line-height: 1.6; margin: 0 0 8px;">
+                                    Hi${userName ? ' ' + userName : ''},
+                                </p>
+                                <p style="color: #999; font-size: 15px; line-height: 1.6; margin: 0 0 30px;">
+                                    We received a request to reset your password. Use the verification code below to proceed.
+                                </p>
+
+                                <!-- OTP Box -->
+                                <div style="background: linear-gradient(135deg, rgba(204,255,0,0.08), rgba(204,255,0,0.03)); border: 1px solid rgba(204,255,0,0.2); border-radius: 16px; padding: 30px; text-align: center; margin-bottom: 30px;">
+                                    <div style="color: #888; font-size: 12px; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 12px;">Verification Code</div>
+                                    <div style="font-size: 40px; font-weight: 800; letter-spacing: 12px; color: #ccff00; font-family: 'Courier New', monospace;">
+                                        ${otp}
+                                    </div>
+                                    <div style="color: #666; font-size: 13px; margin-top: 12px;">
+                                        ⏱ Expires in <strong style="color: #ff6b6b;">5 minutes</strong>
+                                    </div>
+                                </div>
+
+                                <!-- Security Notice -->
+                                <div style="background: rgba(255,59,48,0.06); border: 1px solid rgba(255,59,48,0.15); border-radius: 12px; padding: 16px; margin-bottom: 24px;">
+                                    <p style="color: #ff6b6b; font-size: 13px; margin: 0; line-height: 1.5;">
+                                        🔒 <strong>Security Notice:</strong> If you did not request this code, please ignore this email. Never share this code with anyone.
+                                    </p>
+                                </div>
+
+                                <p style="color: #666; font-size: 13px; line-height: 1.6; margin: 0;">
+                                    You have a maximum of <strong style="color: #ccc;">3 attempts</strong> to enter the correct code. After that, you'll need to request a new one.
+                                </p>
+                            </td>
+                        </tr>
+
+                        <!-- Footer -->
+                        <tr>
+                            <td style="border-top: 1px solid #222; padding: 24px 40px; text-align: center;">
+                                <p style="color: #444; font-size: 12px; margin: 0; line-height: 1.6;">
+                                    &copy; ${new Date().getFullYear()} CampX &bull; Where technology meets the future of campus life.
+                                </p>
+                            </td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    </body>
+    </html>
+    `;
+}
 
 // ========================
 // HEALTH CHECK
@@ -133,70 +256,157 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
-// Forgot Password
+// ========================
+// OTP-BASED FORGOT PASSWORD
+// ========================
+
+// POST /api/auth/forgot-password — Send OTP to registered email
 app.post('/api/auth/forgot-password', async (req, res) => {
     try {
-        // Clean expired tokens in the background
-        User.updateMany(
-            { resetPasswordExpires: { $lt: Date.now() } },
-            { $unset: { resetPasswordToken: 1, resetPasswordExpires: 1 } }
-        ).catch(err => console.error('Failed to clean expired tokens:', err));
-
         const { email } = req.body;
-        const user = await User.findOne({ email: email.toLowerCase() });
-        // Security requirement: do not reveal whether user exists
-        if (!user) {
-            return res.json({ message: 'If the email exists, a reset link will be sent.' });
+        if (!email) {
+            return res.status(400).json({ error: 'Email is required.' });
         }
 
-        const resetToken = crypto.randomBytes(32).toString('hex');
-        user.resetPasswordToken = resetToken;
-        user.resetPasswordExpires = Date.now() + 3600000; // 1 hour expiration
-        await user.save();
+        const normalizedEmail = email.toLowerCase();
 
-        const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password/${resetToken}`;
+        // Rate limiting: one OTP per email per 60 seconds
+        const rateCheck = checkOtpRateLimit(normalizedEmail);
+        if (!rateCheck.allowed) {
+            return res.status(429).json({ 
+                error: `Please wait ${rateCheck.remainingSec} seconds before requesting another OTP.`,
+                retryAfter: rateCheck.remainingSec
+            });
+        }
 
-        const transporter = nodemailer.createTransport({
-            host: 'smtp-relay.brevo.com',
-            port: 587,
-            secure: false, // TLS requires secure: false for port 587
-            auth: {
-                user: process.env.BREVO_SMTP_USER,
-                pass: process.env.BREVO_SMTP_PASS
-            }
-        });
+        // Check if user exists
+        const user = await User.findOne({ email: normalizedEmail });
+        if (!user) {
+            // Security: don't reveal whether email exists, but return success-like response
+            return res.json({ message: 'If the email is registered, an OTP has been sent.' });
+        }
 
+        // Delete any existing OTPs for this email
+        await OTP.deleteMany({ email: normalizedEmail });
+
+        // Generate and store OTP
+        const otp = generateOTP();
+        const hashedOtp = await bcrypt.hash(otp, 10);
+
+        await new OTP({
+            email: normalizedEmail,
+            otp: hashedOtp,
+            attempts: 0,
+            verified: false
+        }).save();
+
+        // Send OTP email via Gmail
         const mailOptions = {
-            from: process.env.BREVO_SMTP_USER || 'no-reply@campx.com',
+            from: `"CampX Support" <${process.env.GMAIL_USER}>`,
             to: user.email,
-            subject: 'Reset Your Campx Password',
-            html: `
-                <div style="font-family: 'Inter', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 30px; background-color: #0d0d0d; color: #f5f5f5; border-radius: 12px; border: 1px solid #333;">
-                    <div style="text-align: center; margin-bottom: 30px;">
-                        <h1 style="color: #a8e600; font-size: 28px; margin: 0;">CampX</h1>
-                    </div>
-                    <h2 style="color: #ffffff; font-size: 22px; text-align: center;">Reset Your Password</h2>
-                    <p style="font-size: 16px; line-height: 1.5; color: #cccccc; text-align: center;">You recently requested a password reset for your CampX account.</p>
-                    <p style="font-size: 16px; line-height: 1.5; color: #cccccc; text-align: center;">Click the button below to set a new password. This link is valid for <strong>1 hour</strong>.</p>
-                    <div style="text-align: center; margin: 40px 0;">
-                        <a href="${resetUrl}" style="background-color: #a8e600; color: #000; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; display: inline-block;">Reset Password</a>
-                    </div>
-                    <p style="font-size: 14px; line-height: 1.5; color: #999; text-align: center;">If you did not request this password reset, please ignore this email or contact support if you have questions.</p>
-                    <hr style="border: none; border-top: 1px solid #333; margin: 30px 0;" />
-                    <p style="font-size: 12px; color: #666; text-align: center;">&copy; ${new Date().getFullYear()} CampX. All rights reserved.</p>
-                </div>
-            `
+            subject: '🔐 Your CampX Password Reset Code',
+            html: getOtpEmailTemplate(otp, user.name)
         };
 
         await transporter.sendMail(mailOptions);
-        res.json({ message: 'If the email exists, a reset link will be sent.' });
+        console.log(`✅ OTP sent to ${normalizedEmail}`);
+
+        res.json({ message: 'If the email is registered, an OTP has been sent.' });
     } catch (err) {
         console.error('Forgot password error:', err);
-        res.status(500).json({ error: 'Failed to process request.' });
+        res.status(500).json({ error: 'Failed to process request. Please try again.' });
     }
 });
 
-// Reset Password
+// POST /api/auth/verify-otp — Verify the 6-digit OTP
+app.post('/api/auth/verify-otp', async (req, res) => {
+    try {
+        const { email, otp } = req.body;
+        if (!email || !otp) {
+            return res.status(400).json({ error: 'Email and OTP are required.' });
+        }
+
+        const normalizedEmail = email.toLowerCase();
+
+        // Find the OTP record
+        const otpRecord = await OTP.findOne({ email: normalizedEmail });
+        if (!otpRecord) {
+            return res.status(400).json({ error: 'OTP has expired or was not requested. Please request a new one.' });
+        }
+
+        // Check max attempts (3 wrong attempts allowed)
+        if (otpRecord.attempts >= 3) {
+            await OTP.deleteOne({ _id: otpRecord._id });
+            return res.status(429).json({ error: 'Too many wrong attempts. Please request a new OTP.' });
+        }
+
+        // Verify OTP using bcrypt
+        const isValid = await bcrypt.compare(otp, otpRecord.otp);
+        if (!isValid) {
+            otpRecord.attempts += 1;
+            await otpRecord.save();
+            const remaining = 3 - otpRecord.attempts;
+            return res.status(400).json({ 
+                error: `Invalid OTP. ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining.`
+            });
+        }
+
+        // Mark OTP as verified (will be checked during password reset)
+        otpRecord.verified = true;
+        await otpRecord.save();
+
+        res.json({ message: 'OTP verified successfully. You can now reset your password.' });
+    } catch (err) {
+        console.error('Verify OTP error:', err);
+        res.status(500).json({ error: 'Failed to verify OTP.' });
+    }
+});
+
+// POST /api/auth/reset-password — Reset password after OTP verification
+app.post('/api/auth/reset-password', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+        if (!email || !password) {
+            return res.status(400).json({ error: 'Email and new password are required.' });
+        }
+
+        if (password.length < 6) {
+            return res.status(400).json({ error: 'Password must be at least 6 characters.' });
+        }
+
+        const normalizedEmail = email.toLowerCase();
+
+        // Verify that OTP was confirmed for this email
+        const otpRecord = await OTP.findOne({ email: normalizedEmail, verified: true });
+        if (!otpRecord) {
+            return res.status(403).json({ error: 'OTP verification required before resetting password.' });
+        }
+
+        // Find the user
+        const user = await User.findOne({ email: normalizedEmail });
+        if (!user) {
+            return res.status(404).json({ error: 'User not found.' });
+        }
+
+        // Hash new password using bcrypt
+        const salt = await bcrypt.genSalt(10);
+        user.password = await bcrypt.hash(password, salt);
+        user.resetPasswordToken = undefined;
+        user.resetPasswordExpires = undefined;
+        await user.save();
+
+        // Clean up: delete the OTP record
+        await OTP.deleteMany({ email: normalizedEmail });
+
+        console.log(`✅ Password reset for ${normalizedEmail}`);
+        res.json({ message: 'Password has been successfully updated!' });
+    } catch (err) {
+        console.error('Reset password error:', err);
+        res.status(500).json({ error: 'Failed to reset password.' });
+    }
+});
+
+// Keep old token-based reset route for backward compatibility
 app.post('/api/auth/reset-password/:token', async (req, res) => {
     try {
         const { token } = req.params;

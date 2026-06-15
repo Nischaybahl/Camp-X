@@ -603,7 +603,7 @@ export default function Home() {
                     gap: '2rem'
                 }}>
                     <div className="logo-container" style={{ opacity: 1, marginBottom: '1rem' }}>
-                        <span>CampX<span style={{ color: 'var(--accent)' }}> | </span>A Platform by Nischay Bahl, Abhijeet Thakur, Priyanshu Thakur</span>
+                        <span>CampX<span style={{ color: 'var(--accent)' }}> | </span>A Platform by Nischay Bahl</span>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginLeft: '1rem', background: 'rgba(204,255,0,0.1)', padding: '0.4rem 0.8rem', borderRadius: '2rem', border: '1px solid rgba(204,255,0,0.2)' }}>
                             <Headphones size={14} color="var(--accent)" />
                             <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '1px' }}>Support</span>
