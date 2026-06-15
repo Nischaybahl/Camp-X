@@ -63,15 +63,13 @@ function Navigation({ isLightMode, toggleTheme }: NavigationProps) {
         <Link to="/home" className="nav-link" onClick={closeMenu} style={{ color: path === '/home' ? 'var(--primary)' : 'var(--secondary)' }}>Home</Link>
         <Link to="/campus-complaint" className="nav-link" onClick={closeMenu} style={{ color: path === '/campus-complaint' ? 'var(--primary)' : 'var(--secondary)' }}>Campus Complaint</Link>
 
-        {/* Temporarily hidden — uncomment to restore:
-        <Link to="/notes" ...>Notes</Link>
-        <Link to="/attendance" ...>Attendance</Link>
-        <Link to="/pyq" ...>PYQ</Link>
-        <Link to="/academia-central" ...>Academia Central</Link>
-        <Link to="/college-updates" ...>College Updates</Link>
-        <Link to="/handwriting" ...>Handwriting</Link>
-        <Link to="/resume" ...>Resume AI</Link>
-        */}
+        <Link to="/notes" className="nav-link" onClick={closeMenu} style={{ color: path === '/notes' ? 'var(--primary)' : 'var(--secondary)' }}>Notes</Link>
+        <Link to="/attendance" className="nav-link" onClick={closeMenu} style={{ color: path === '/attendance' ? 'var(--primary)' : 'var(--secondary)' }}>Attendance</Link>
+        <Link to="/pyq" className="nav-link" onClick={closeMenu} style={{ color: path === '/pyq' ? 'var(--primary)' : 'var(--secondary)' }}>PYQ</Link>
+        <Link to="/academia-central" className="nav-link" onClick={closeMenu} style={{ color: path === '/academia-central' ? 'var(--primary)' : 'var(--secondary)' }}>Academia Central</Link>
+        <Link to="/college-updates" className="nav-link" onClick={closeMenu} style={{ color: path === '/college-updates' ? 'var(--primary)' : 'var(--secondary)' }}>College Updates</Link>
+        <Link to="/handwriting" className="nav-link" onClick={closeMenu} style={{ color: path === '/handwriting' ? 'var(--primary)' : 'var(--secondary)' }}>Handwriting</Link>
+        <Link to="/resume" className="nav-link" onClick={closeMenu} style={{ color: path === '/resume' ? 'var(--primary)' : 'var(--secondary)' }}>Resume AI</Link>
 
         {isAdmin && (
           <Link to="/admin" className="nav-link" onClick={closeMenu} style={{ color: path === '/admin' ? '#ccff00' : 'var(--secondary)', fontWeight: 'bold' }}>Admin Panel</Link>
