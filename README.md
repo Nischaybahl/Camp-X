@@ -35,4 +35,4 @@ Used by 100+ active users and built as a real-world student solution.
 
 ## 👨‍💻 Developer
 
-Built by  Priyanshu Thakur Nischay Bahl Abhijeet Thakur
+Built by Nischay Bahl
