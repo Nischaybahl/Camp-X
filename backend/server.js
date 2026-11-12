@@ -18,7 +18,10 @@ app.use(cors());
 app.use(express.json());
 
 // MongoDB connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/campx')
+mongoose.set('bufferCommands', false);
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/campx', {
+  serverSelectionTimeoutMS: 5000,
+})
   .then(() => console.log('✅ MongoDB connected successfully'))
   .catch(err => console.log('❌ MongoDB connection error:', err.message));
 
