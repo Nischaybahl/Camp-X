@@ -1,250 +1,749 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import {
+  sendChatMessage, loadChatHistory, createChatbotTicket,
+  trackTicket, getMyTickets, sendFeedback, submitRating,
+  type ClassificationResult, type TicketResult, type TicketStatus,
+} from '../utils/chatbotApi';
 
-/* ─── Constants ───────────────────────────────────────────────────────── */
-const WEATHER_KEY = import.meta.env.VITE_WEATHER_KEY || '';
-
-const PLATFORM_MAP: Record<string, string> = {
-  youtube: 'https://youtube.com',
-  linkedin: 'https://linkedin.com',
-  chatgpt: 'https://chat.openai.com',
-  claude: 'https://claude.ai',
-  github: 'https://github.com',
-  gmail: 'https://mail.google.com',
-  instagram: 'https://instagram.com',
-  twitter: 'https://twitter.com',
-};
-
-const QUICK_ACTIONS = [
-  { label: '🕐 Time & Date', msg: 'What time is it?' },
-  { label: '🌤️ Weather', msg: 'What is the weather?' },
-  { label: '▶️ Open YouTube', msg: 'Open YouTube' },
-  { label: '🎓 CampX Features', msg: 'What are CampX features?' },
-  { label: '💼 BTech Career Guide', msg: 'Give me a BTech career guide' },
-  { label: '📄 Rate My Resume', msg: 'Rate my resume' },
-];
+/* ─── Types ──────────────────────────────────────────────────────────── */
+type Role = 'user' | 'assistant' | 'system';
+type MsgType = 'text' | 'faq' | 'ticket' | 'ticket-confirm' | 'track' | 'rating' | 'keyword-select';
 
 interface Message {
-  role: 'user' | 'assistant';
-  content: string;
+  id:        string;
+  role:      Role;
+  content:   string;
+  type:      MsgType;
+  meta?:     Record<string, unknown>;
+  timestamp: Date;
 }
 
-/* ─── Component ───────────────────────────────────────────────────────── */
-export default function ChatbotWidget() {
-  const [isOpen, setIsOpen] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', content: "Hey! 👋 I'm **CampX AI**. How can I help you today?" },
-  ]);
-  const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [isListening, setIsListening] = useState(false);
-  const [waitingForCity, setWaitingForCity] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const recognitionRef = useRef<any>(null);
+/* ─── Design tokens (matches CampX dark theme) ───────────────────────── */
+const ACCENT  = '#ccff00';
+const BG      = '#111111';
+const BG2     = '#1a1a1a';
+const BG3     = '#222222';
+const BORDER  = 'rgba(204,255,0,0.12)';
+const MUTED   = 'rgba(255,255,255,0.4)';
+const URGENT  = '#ff6b6b';
+const SUCCESS = '#51cf66';
 
-  // Auto-scroll on new messages
+/* ─── Quick suggestions ──────────────────────────────────────────────── */
+const QUICK_SUGGESTIONS = [
+  { label: '📋 Apply for leave',           msg: 'How do I apply for leave?' },
+  { label: '📋 Examination notices',       msg: 'Where can I find examination notices?' },
+  { label: '🎫 Submit a complaint',        msg: 'How do I submit a complaint?' },
+  { label: '💰 Fee-related issues',        msg: 'Who should I contact for fee-related issues?' },
+  { label: '📚 Academic resources',        msg: 'How can I access academic resources?' },
+  { label: '🔍 Track my complaint',        msg: 'Track my complaint' },
+];
+
+/* ─── Keyword categories for AI fallback ────────────────────────────── */
+const KEYWORD_CATEGORIES = [
+  'Academics', 'Examination', 'Accounts & Fees',
+  'Hostel', 'Library', 'IT Support', 'Administration', 'Student Affairs', 'Other',
+];
+
+/* ─── Helpers ────────────────────────────────────────────────────────── */
+function uid() { return Math.random().toString(36).slice(2, 10); }
+
+function formatTime(d: Date) {
+  return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+}
+
+function getCurrentUser() {
+  try {
+    return JSON.parse(localStorage.getItem('campx_current_user') || 'null');
+  } catch { return null; }
+}
+
+/* ─── Markdown renderer (bold, links, code, bullets) ────────────────── */
+function renderMarkdown(text: string) {
+  return text.split('\n').map((line, i) => {
+    let html = line
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/`([^`]+)`/g,     '<code style="background:rgba(204,255,0,0.1);padding:1px 5px;border-radius:4px;font-size:0.82em">$1</code>')
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, `<a href="$2" style="color:${ACCENT};font-weight:600;text-decoration:none;" target="_blank">$1</a>`);
+
+    // bullet
+    if (line.startsWith('- ') || line.startsWith('• ')) {
+      html = `<span style="display:inline-block;margin-right:6px;color:${ACCENT}">•</span>${html.slice(2)}`;
+    }
+    return (
+      <p key={i} style={{ margin: line ? '0.2em 0' : '0.5em 0' }}
+        dangerouslySetInnerHTML={{ __html: html || '&nbsp;' }} />
+    );
+  });
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   MAIN COMPONENT
+   ══════════════════════════════════════════════════════════════════════ */
+export default function ChatbotWidget() {
+  const user = getCurrentUser();
+  const isLoggedIn = !!user;
+
+  const [isOpen,        setIsOpen]        = useState(false);
+  const [messages,      setMessages]      = useState<Message[]>([]);
+  const [input,         setInput]         = useState('');
+  const [loading,       setLoading]       = useState(false);
+  const [isConfidential,setIsConfidential]= useState(false);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [trackInput,    setTrackInput]    = useState('');
+  const [showTrackForm, setShowTrackForm] = useState(false);
+
+  const scrollRef  = useRef<HTMLDivElement>(null);
+  const inputRef   = useRef<HTMLInputElement>(null);
+
+  /* ── Auto-scroll ─────────────────────────────────────────────── */
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages, loading]);
 
-  // Focus input when panel opens
+  /* ── Focus input on open ─────────────────────────────────────── */
   useEffect(() => {
     if (isOpen) setTimeout(() => inputRef.current?.focus(), 300);
   }, [isOpen]);
 
-  /* ─── Helpers ─────────────────────────────────────────────────────── */
-  const addMsg = useCallback((role: 'user' | 'assistant', content: string) => {
+  /* ── Load history when first opened ─────────────────────────── */
+  useEffect(() => {
+    if (!isOpen || historyLoaded || !isLoggedIn) return;
+    setHistoryLoaded(true);
+
+    const welcome: Message = {
+      id: uid(), role: 'assistant', type: 'text',
+      content: `Hey! 👋 I'm **CampX Assist**. How can I help you today?`,
+      timestamp: new Date(),
+    };
+
+    loadChatHistory().then(({ messages: hist }) => {
+      if (hist.length === 0) {
+        setMessages([welcome]);
+        return;
+      }
+      const restored: Message[] = hist
+        .filter(m => m.role === 'user' || (m.role === 'assistant' && m.content))
+        .map(m => ({
+          id:        uid(),
+          role:      m.role as Role,
+          type:      (m.metadata?.type as MsgType) || 'text',
+          content:   m.content,
+          meta:      m.metadata as Record<string, unknown>,
+          timestamp: new Date(m.timestamp),
+        }));
+      setMessages([welcome, ...restored]);
+    });
+  }, [isOpen, historyLoaded, isLoggedIn]);
+
+  /* ── Add message helper ──────────────────────────────────────── */
+  const addMsg = useCallback((msg: Omit<Message, 'id' | 'timestamp'>) => {
     setMessages(prev => {
-      const next = [...prev, { role, content }];
-      return next.length > 40 ? next.slice(-40) : next;
+      const next = [...prev, { ...msg, id: uid(), timestamp: new Date() }];
+      return next.length > 60 ? next.slice(-60) : next;
     });
   }, []);
 
-  const getTimeDate = () => {
-    const now = new Date();
-    return `🕐 **Time:** ${now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}\n📅 **Date:** ${now.toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`;
-  };
+  /* ── Handle AI classification result ────────────────────────── */
+  async function handleClassificationResult(
+    result: ClassificationResult,
+    originalMessage: string,
+    confidential: boolean,
+  ) {
+    const transcript = messages
+      .filter(m => m.role === 'user' || m.role === 'assistant')
+      .slice(-10)
+      .map(m => ({ role: m.role, content: m.content }));
 
-  const tryOpenPlatform = (text: string): string | null => {
-    const lower = text.toLowerCase();
-    for (const [name, url] of Object.entries(PLATFORM_MAP)) {
-      if (lower.includes('open') && lower.includes(name)) {
-        window.open(url, '_blank');
-        return `✅ Opened **${name.charAt(0).toUpperCase() + name.slice(1)}** in a new tab!`;
-      }
+    // ── Urgent / sensitive: skip FAQ, go straight to ticket ──
+    if (result.isSensitive || result.urgency === 'Urgent') {
+      addMsg({
+        role: 'assistant', type: 'text',
+        content: `⚠️ I've detected this may be an **urgent or sensitive concern** (${result.category}).\n\nThis will be immediately escalated to the **Grievance Cell** as a high-priority ticket. Your privacy is protected.`,
+      });
+
+      await autoCreateTicket({
+        description: originalMessage,
+        category: result.category,
+        urgency: result.urgency,
+        confidence: result.confidence,
+        confidential,
+        anonymous: false,
+        transcript,
+      });
+      return;
     }
-    return null;
-  };
 
-  const fetchWeather = async (city: string): Promise<string> => {
-    if (!WEATHER_KEY) return '⚠️ Weather API key not configured. Add `VITE_WEATHER_KEY` to your .env file.';
+    // ── FAQ answer available ──
+    if (result.faqFound && result.answer && result.confidence >= 0.65) {
+      addMsg({
+        role: 'assistant', type: 'faq',
+        content: result.answer,
+        meta: {
+          category: result.category,
+          confidence: result.confidence,
+          sources: result.faqSources,
+          originalMessage,
+          category_val: result.category,
+          urgency: result.urgency,
+          confidence_val: result.confidence,
+          transcript,
+          confidential,
+        },
+      });
+      return;
+    }
+
+    // ── No FAQ, low confidence, or fallback ──
+    if (result.usedFallback && result.provider === 'keyword') {
+      // Show category selection menu
+      addMsg({
+        role: 'assistant', type: 'keyword-select',
+        content: `I wasn't able to find a specific answer for your query. Please select the most relevant category so I can help you better:`,
+        meta: { originalMessage, confidential, transcript },
+      });
+      return;
+    }
+
+    // ── AI answered but no FAQ grounding ──
+    if (result.answer && result.confidence >= 0.65) {
+      addMsg({
+        role: 'assistant', type: 'faq',
+        content: result.answer,
+        meta: {
+          category: result.category,
+          confidence: result.confidence,
+          sources: [],
+          originalMessage,
+          category_val: result.category,
+          urgency: result.urgency,
+          confidence_val: result.confidence,
+          transcript,
+          confidential,
+        },
+      });
+      return;
+    }
+
+    // ── Offer ticket creation ──
+    addMsg({
+      role: 'assistant', type: 'text',
+      content: `I couldn't find a definitive answer for your query in **${result.category}**.\n\nWould you like me to create a support ticket so the relevant department can help you directly?`,
+    });
+    addMsg({
+      role: 'assistant', type: 'ticket',
+      content: '',
+      meta: {
+        description: originalMessage,
+        category: result.category,
+        urgency: result.urgency,
+        confidence: result.confidence,
+        transcript,
+        confidential,
+      },
+    });
+  }
+
+  /* ── Auto-create ticket ──────────────────────────────────────── */
+  async function autoCreateTicket(opts: {
+    description: string; category: string; urgency: string;
+    confidence: number; confidential: boolean; anonymous: boolean;
+    transcript: { role: string; content: string }[];
+  }) {
     try {
-      const res = await fetch(
-        `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&units=metric&appid=${WEATHER_KEY}`
-      );
-      if (!res.ok) return `❌ Could not find weather for "${city}". Please check the city name.`;
-      const d = await res.json();
-      return `🌤️ **Weather in ${d.name}:**\n🌡️ Temperature: ${d.main.temp}°C (feels like ${d.main.feels_like}°C)\n☁️ Condition: ${d.weather[0].description}\n💧 Humidity: ${d.main.humidity}%\n💨 Wind: ${d.wind.speed} m/s`;
-    } catch {
-      return '❌ Failed to fetch weather data. Please try again.';
+      const result = await createChatbotTicket({
+        description: opts.description,
+        category: opts.category,
+        urgency: opts.urgency,
+        confidenceScore: opts.confidence,
+        isConfidential: opts.confidential,
+        isAnonymous: opts.anonymous,
+        conversationTranscript: opts.transcript,
+      });
+      addMsg({ role: 'assistant', type: 'ticket-confirm', content: '', meta: { ticket: result } });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      addMsg({ role: 'assistant', type: 'text', content: `❌ Failed to create ticket: ${msg}. Please try again or visit the [Campus Complaints](/campus-complaint) page directly.` });
     }
-  };
+  }
 
-  const getPredefinedResponse = (text: string): string => {
-    const lower = text.toLowerCase();
-    
-    if (lower.includes('complaint')) {
-      return "If you're facing any issues on campus, you can easily raise a formal campus complaint. \n\nWe track grievances related to Hostels, IT Infrastructure, Maintenance, and more. \n\n👉 [Click here to Open Campus Complaints](/campus-complaint)";
-    }
-    if (lower.includes('note')) {
-      return "CampX provides a complete repository of academic notes organized by semester and subject! \n\n👉 [Click here to browse Notes](/notes)";
-    }
-    if (lower.includes('attendance')) {
-      return "Wondering if you can skip the next lecture? You can calculate and track your real-time attendance using our specific attendance dashboard. \n\n👉 [Click here to track Attendance](/attendance)";
-    }
-    if (lower.includes('pyq') || lower.includes('previous year')) {
-      return "Ace your exams by practicing with our library of Previous Year Questions (PYQs). \n\n👉 [Click here to download PYQs](/pyq)";
-    }
-    if (lower.includes('academia') || lower.includes('central')) {
-      return "Academia Central is your hub for all serious academic resources and guides. \n\n👉 [Click here to visit Academia Central](/academia-central)";
-    }
-    if (lower.includes('update') || lower.includes('news')) {
-      return "Stay informed with the latest schedules, exams, and important announcements on the College Updates page. \n\n👉 [Click here to see College Updates](/college-updates)";
-    }
-    if (lower.includes('resume') || lower.includes('ats')) {
-      return "Want to know if your resume will pass initial software screening? Use our AI-powered ATS Resume Analyzer to get an instant 0-100 score on impact and brevity. \n\n👉 [Click here to score your Resume](/resume)";
-    }
-    if (lower.includes('handwriting') || lower.includes('write')) {
-      return "Need to submit an assignment in handwriting? You can directly type your text and our Text-to-Handwriting converter will generate realistic handwritten pages for you! \n\n👉 [Click here to convert to Handwriting](/handwriting)";
-    }
-    if (lower.includes('btech') || lower.includes('career') || lower.includes('job')) {
-      return "**BTech Career Guide overview**:\n\n1. **Software Developer** (Needs Java/C++/JS). High demand everywhere, great starting salaries.\n2. **Data Scientist** (Needs Python/R/Maths). Critical for the AI revolution, excellent pay.\n3. **Cloud Engineer** (Needs AWS/Azure). Growing rapidly as tech moves off-premise.\n4. **Cybersecurity Analyst** (Needs Networking, Linux). Indispensable for corporate safety.\n\nWhich specific path are you interested in?";
-    }
-    if (lower.includes('feature') || lower.includes('what can you do') || lower.includes('help')) {
-      return "I can give you information or direct links to these brilliant CampX features:\n- **Campus Complaints**\n- **Academic Notes & PYQs**\n- **Attendance Tracker**\n- **Resume Analyzer**\n- **Text-to-Handwriting**\n\nJust ask me to open any of them!";
-    }
-    if (lower.match(/\b(hi|hello|hey|greetings|wassup)\b/i)) {
-      return "Hello there! 👋 I am CampX AI, your personal assistant. Ask me about our features like Resume Analysis, Attendance Tracking, or Campus Complaints!";
-    }
-
-    return "I'm your official CampX assistant! While I don't have a specific pre-programmed answer for that, try asking me to 'open complaints', 'show features', or 'take me to the resume analyzer'.";
-  };
-
-  /* ─── Send message ──────────────────────────────────────────────── */
+  /* ── Send message ────────────────────────────────────────────── */
   const sendMessage = useCallback(async (text?: string) => {
     const msg = (text || input).trim();
     if (!msg || loading) return;
     setInput('');
-    addMsg('user', msg);
-    setLoading(true);
+    setShowTrackForm(false);
 
-    const lower = msg.toLowerCase();
-
-    try {
-      // Time & Date
-      if (/\b(time|date|day)\b/i.test(lower) && /\b(what|current|tell|show)\b/i.test(lower)) {
-        addMsg('assistant', getTimeDate());
-        return;
-      }
-
-      // Open platform
-      const platformReply = tryOpenPlatform(msg);
-      if (platformReply) { addMsg('assistant', platformReply); return; }
-
-      // Weather flow
-      if (waitingForCity) {
-        setWaitingForCity(false);
-        const weatherReply = await fetchWeather(msg);
-        addMsg('assistant', weatherReply);
-        return;
-      }
-
-      if (/\bweather\b/i.test(lower)) {
-        // Check if city is in the message
-        const cityMatch = lower.match(/weather\s+(?:in|for|of|at)\s+(.+)/i);
-        if (cityMatch) {
-          const weatherReply = await fetchWeather(cityMatch[1].trim());
-          addMsg('assistant', weatherReply);
-        } else {
-          setWaitingForCity(true);
-          addMsg('assistant', '🌍 Sure! Which city would you like to check the weather for?');
-        }
-        return;
-      }
-
-      // Predefined Knowledge Base for everything else
-      setTimeout(() => {
-        const reply = getPredefinedResponse(msg);
-        addMsg('assistant', reply);
-        setLoading(false);
-      }, 600); // simulate tiny delay for realistic feel
-    } catch {
-      setLoading(false);
-    }
-  }, [input, loading, messages, waitingForCity, addMsg]);
-
-  /* ─── Voice input ───────────────────────────────────────────────── */
-  const toggleVoice = () => {
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) { addMsg('assistant', '⚠️ Voice input is not supported in this browser.'); return; }
-
-    if (isListening) {
-      recognitionRef.current?.stop();
-      setIsListening(false);
+    if (!isLoggedIn) {
+      addMsg({ role: 'user', type: 'text', content: msg });
+      addMsg({ role: 'assistant', type: 'text', content: '🔒 Please [sign in](/login) to use CampX Assist.' });
       return;
     }
 
-    const recognition = new SR();
-    recognition.lang = 'en-IN';
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
-    recognitionRef.current = recognition;
+    addMsg({ role: 'user', type: 'text', content: msg });
+    setLoading(true);
 
-    recognition.onresult = (event: any) => {
-      const transcript = event.results[0][0].transcript;
-      setIsListening(false);
-      sendMessage(transcript);
-    };
-    recognition.onerror = () => setIsListening(false);
-    recognition.onend = () => setIsListening(false);
-    recognition.start();
-    setIsListening(true);
-  };
+    // "Track complaint" shortcut
+    const lower = msg.toLowerCase();
+    if (lower.includes('track') && (lower.includes('complaint') || lower.includes('ticket'))) {
+      setLoading(false);
+      setShowTrackForm(true);
+      addMsg({ role: 'assistant', type: 'text', content: 'Please enter your **Ticket ID** (format: CXA-XXXXXXXX) to track your complaint:' });
+      return;
+    }
 
-  /* ─── Simple markdown renderer ──────────────────────────────────── */
-  const renderMarkdown = (text: string) => {
-    return text.split('\n').map((line, i) => {
-      // Bold
-      let rendered = line.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-      // Inline code
-      rendered = rendered.replace(/`(.+?)`/g, '<code style="background:rgba(245,200,66,0.15);padding:1px 5px;border-radius:4px;font-size:0.82em">$1</code>');
-      // Links
-      rendered = rendered.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" style="color:var(--accent,#f5c842);font-weight:600;text-decoration:none;">$1</a>');
-      return <p key={i} style={{ margin: line ? '0.25em 0' : '0.6em 0' }} dangerouslySetInnerHTML={{ __html: rendered || '&nbsp;' }} />;
-    });
-  };
+    try {
+      const result = await sendChatMessage(msg, isConfidential);
+      await handleClassificationResult(result, msg, isConfidential);
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : 'Unknown error';
+      addMsg({ role: 'assistant', type: 'text', content: `❌ ${errMsg || 'Something went wrong. Please try again.'}` });
+    } finally {
+      setLoading(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [input, loading, isLoggedIn, isConfidential, messages]);
 
+  /* ── Track a ticket ──────────────────────────────────────────── */
+  async function handleTrack() {
+    const tid = trackInput.trim().toUpperCase();
+    if (!tid) return;
+    setTrackInput('');
+    setShowTrackForm(false);
+    addMsg({ role: 'user', type: 'text', content: `Track ticket: ${tid}` });
+    setLoading(true);
+    try {
+      const ticket = await trackTicket(tid);
+      addMsg({ role: 'assistant', type: 'track', content: '', meta: { ticket } });
+    } catch {
+      addMsg({ role: 'assistant', type: 'text', content: `❌ Ticket **${tid}** not found. Please check the ID and try again.` });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  /* ── My tickets ──────────────────────────────────────────────── */
+  async function handleMyTickets() {
+    addMsg({ role: 'user', type: 'text', content: 'Show my complaints' });
+    setLoading(true);
+    try {
+      const tickets = await getMyTickets();
+      if (tickets.length === 0) {
+        addMsg({ role: 'assistant', type: 'text', content: "You don't have any chatbot-submitted complaints yet." });
+      } else {
+        addMsg({ role: 'assistant', type: 'text', content: `You have **${tickets.length}** complaint(s) on record:` });
+        tickets.slice(0, 5).forEach(t => {
+          const statusColor = t.status === 'Resolved' ? SUCCESS : t.status === 'Open' ? '#4dabf7' : '#ffd43b';
+          addMsg({
+            role: 'assistant', type: 'text',
+            content: `**${t.trackingId}** — ${t.category}\nStatus: <span style="color:${statusColor}">${t.status}</span>`,
+          });
+        });
+      }
+    } catch {
+      addMsg({ role: 'assistant', type: 'text', content: '❌ Failed to load your tickets. Please try again.' });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  /* ── Rating submit ───────────────────────────────────────────── */
+  async function handleRating(trackingId: string, rating: number, msgId: string) {
+    await submitRating(trackingId, rating);
+    setMessages(prev => prev.map(m =>
+      m.id === msgId ? { ...m, meta: { ...m.meta, ratingSubmitted: true, givenRating: rating } } : m
+    ));
+  }
+
+  /* ── Key handler ─────────────────────────────────────────────── */
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   };
 
-  /* ─── Styles ────────────────────────────────────────────────────── */
-  const Y = '#f5c842'; // accent yellow
-  const BG = '#111';
-  const BG2 = '#1a1a1a';
-  const BORDER = 'rgba(245,200,66,0.15)';
+  /* ══════════════════════════════════════════════════════════════
+     RENDER HELPERS
+     ══════════════════════════════════════════════════════════════ */
 
-  /* ─── Render ────────────────────────────────────────────────────── */
+  function StatusBadge({ status }: { status: string }) {
+    const colors: Record<string, string> = {
+      'Open':        '#4dabf7',
+      'In Progress': '#ffd43b',
+      'Resolved':    SUCCESS,
+      'Closed':      '#888',
+    };
+    return (
+      <span style={{ color: colors[status] || '#fff', fontWeight: 700, fontSize: '0.8rem' }}>
+        {status}
+      </span>
+    );
+  }
+
+  function PriorityBadge({ priority }: { priority: string }) {
+    const colors: Record<string, string> = {
+      low: SUCCESS, medium: '#ffd43b', high: '#ff922b', urgent: URGENT,
+    };
+    return (
+      <span style={{
+        background: colors[priority] ? colors[priority] + '22' : '#ffffff11',
+        color: colors[priority] || '#fff',
+        padding: '2px 8px', borderRadius: 20, fontSize: '0.72rem', fontWeight: 700, textTransform: 'capitalize',
+      }}>
+        {priority}
+      </span>
+    );
+  }
+
+  function renderMessage(m: Message) {
+    const isUser = m.role === 'user';
+
+    // ── User bubble ──
+    if (isUser) {
+      return (
+        <div key={m.id} style={{ display: 'flex', justifyContent: 'flex-end', animation: 'cbFadeIn 0.3s ease' }}>
+          <div style={{
+            maxWidth: '78%', padding: '10px 14px', borderRadius: '14px 14px 4px 14px',
+            background: `linear-gradient(135deg, ${ACCENT}, #aad900)`, color: '#000',
+            fontSize: '0.84rem', lineHeight: 1.55, wordBreak: 'break-word', fontWeight: 500,
+          }}>
+            {m.content}
+          </div>
+        </div>
+      );
+    }
+
+    const bubbleBase: React.CSSProperties = {
+      maxWidth: '90%', padding: '12px 14px', borderRadius: '4px 14px 14px 14px',
+      background: BG2, color: '#e0e0e0', border: `1px solid rgba(255,255,255,0.06)`,
+      fontSize: '0.84rem', lineHeight: 1.6, wordBreak: 'break-word',
+    };
+
+    // ── FAQ answer with Helpful/Not Helpful ──
+    if (m.type === 'faq' && m.meta) {
+      const { sources, originalMessage, category_val, urgency, confidence_val, transcript, confidential } = m.meta as Record<string, unknown>;
+      const feedbackDone = !!m.meta.feedbackDone;
+      return (
+        <div key={m.id} style={{ display: 'flex', justifyContent: 'flex-start', animation: 'cbFadeIn 0.3s ease' }}>
+          <div style={{ ...bubbleBase, maxWidth: '92%' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+              <span style={{ background: `${ACCENT}22`, color: ACCENT, borderRadius: 20, padding: '2px 8px', fontSize: '0.7rem', fontWeight: 700 }}>
+                📚 {String(category_val || 'FAQ')}
+              </span>
+              {(sources as { title: string }[])?.length > 0 && (
+                <span style={{ color: MUTED, fontSize: '0.68rem' }}>
+                  from college knowledge base
+                </span>
+              )}
+            </div>
+            {renderMarkdown(m.content)}
+
+            {!feedbackDone && (
+              <div style={{ marginTop: 12, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <span style={{ color: MUTED, fontSize: '0.72rem' }}>Was this helpful?</span>
+                <button
+                  onClick={async () => {
+                    await sendFeedback(true, m.content);
+                    setMessages(prev => prev.map(x => x.id === m.id ? { ...x, meta: { ...x.meta, feedbackDone: true, feedbackValue: true } } : x));
+                    addMsg({ role: 'assistant', type: 'text', content: '✅ Glad that helped! Is there anything else I can assist you with?' });
+                  }}
+                  style={{ padding: '5px 12px', borderRadius: 20, border: `1px solid ${SUCCESS}44`, background: `${SUCCESS}11`, color: SUCCESS, cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 }}
+                >
+                  👍 Helpful
+                </button>
+                <button
+                  onClick={async () => {
+                    await sendFeedback(false, m.content);
+                    setMessages(prev => prev.map(x => x.id === m.id ? { ...x, meta: { ...x.meta, feedbackDone: true, feedbackValue: false } } : x));
+                    // Auto-create ticket
+                    addMsg({ role: 'assistant', type: 'text', content: "I'm sorry the answer wasn't helpful. Let me create a support ticket for you so the department can assist you directly." });
+                    setLoading(true);
+                    await autoCreateTicket({
+                      description: String(originalMessage || m.content),
+                      category: String(category_val || 'Other'),
+                      urgency: String(urgency || 'Routine'),
+                      confidence: Number(confidence_val || 0.5),
+                      confidential: !!confidential,
+                      anonymous: false,
+                      transcript: (transcript as { role: string; content: string }[]) || [],
+                    });
+                    setLoading(false);
+                  }}
+                  style={{ padding: '5px 12px', borderRadius: 20, border: `1px solid ${URGENT}44`, background: `${URGENT}11`, color: URGENT, cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 }}
+                >
+                  👎 Not Helpful
+                </button>
+              </div>
+            )}
+            {feedbackDone && m.meta.feedbackValue === true && (
+              <div style={{ marginTop: 10, color: SUCCESS, fontSize: '0.75rem' }}>✅ Marked as helpful</div>
+            )}
+            {feedbackDone && m.meta.feedbackValue === false && (
+              <div style={{ marginTop: 10, color: MUTED, fontSize: '0.75rem' }}>Creating ticket…</div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // ── Ticket creation prompt (yes/no) ──
+    if (m.type === 'ticket' && m.meta) {
+      const { description, category, urgency, confidence, transcript, confidential } = m.meta as Record<string, unknown>;
+      const done = !!m.meta.done;
+      if (done) return null;
+      return (
+        <div key={m.id} style={{ display: 'flex', justifyContent: 'flex-start', animation: 'cbFadeIn 0.3s ease' }}>
+          <div style={{ ...bubbleBase, maxWidth: '92%' }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+              <button
+                onClick={async () => {
+                  setMessages(prev => prev.map(x => x.id === m.id ? { ...x, meta: { ...x.meta, done: true } } : x));
+                  setLoading(true);
+                  await autoCreateTicket({
+                    description: String(description || ''),
+                    category: String(category || 'Other'),
+                    urgency: String(urgency || 'Routine'),
+                    confidence: Number(confidence || 0.5),
+                    confidential: !!confidential,
+                    anonymous: false,
+                    transcript: (transcript as { role: string; content: string }[]) || [],
+                  });
+                  setLoading(false);
+                }}
+                style={{ padding: '7px 16px', borderRadius: 20, border: `1px solid ${ACCENT}44`, background: `${ACCENT}22`, color: ACCENT, cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700 }}
+              >
+                ✅ Yes, create ticket
+              </button>
+              <button
+                onClick={async () => {
+                  setMessages(prev => prev.map(x => x.id === m.id ? { ...x, meta: { ...x.meta, done: true } } : x));
+                  await autoCreateTicket({
+                    description: String(description || ''),
+                    category: String(category || 'Other'),
+                    urgency: String(urgency || 'Routine'),
+                    confidence: Number(confidence || 0.5),
+                    confidential: !!confidential,
+                    anonymous: true,
+                    transcript: (transcript as { role: string; content: string }[]) || [],
+                  });
+                }}
+                style={{ padding: '7px 16px', borderRadius: 20, border: `1px solid rgba(255,255,255,0.15)`, background: 'rgba(255,255,255,0.05)', color: '#ccc', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600 }}
+              >
+                👤 Submit anonymously
+              </button>
+              <button
+                onClick={() => {
+                  setMessages(prev => prev.map(x => x.id === m.id ? { ...x, meta: { ...x.meta, done: true } } : x));
+                  addMsg({ role: 'assistant', type: 'text', content: "No problem! Is there anything else I can help you with?" });
+                }}
+                style={{ padding: '7px 16px', borderRadius: 20, border: `1px solid rgba(255,255,255,0.1)`, background: 'transparent', color: MUTED, cursor: 'pointer', fontSize: '0.8rem' }}
+              >
+                ✕ No thanks
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ── Ticket confirmation ──
+    if (m.type === 'ticket-confirm' && m.meta?.ticket) {
+      const ticket = m.meta.ticket as TicketResult;
+      const ratingDone = !!m.meta.ratingDone;
+      const isOverdue = ticket.slaDeadline && new Date(ticket.slaDeadline) < new Date();
+
+      return (
+        <div key={m.id} style={{ display: 'flex', justifyContent: 'flex-start', animation: 'cbFadeIn 0.3s ease' }}>
+          <div style={{ ...bubbleBase, maxWidth: '95%', padding: 0, overflow: 'hidden' }}>
+            {/* Green header */}
+            <div style={{ background: `linear-gradient(135deg, ${SUCCESS}22, ${SUCCESS}11)`, borderBottom: `1px solid ${SUCCESS}33`, padding: '12px 14px' }}>
+              <div style={{ color: SUCCESS, fontWeight: 700, fontSize: '0.9rem' }}>✅ Complaint Submitted!</div>
+              <div style={{ color: MUTED, fontSize: '0.72rem', marginTop: 2 }}>Your complaint has been successfully submitted.</div>
+            </div>
+            {/* Details */}
+            <div style={{ padding: '12px 14px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: '0.8rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: MUTED }}>Ticket ID</span>
+                  <span style={{ color: ACCENT, fontWeight: 700, fontFamily: 'monospace' }}>{ticket.trackingId}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: MUTED }}>Department</span>
+                  <span style={{ color: '#fff' }}>{ticket.category}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: MUTED }}>Priority</span>
+                  <PriorityBadge priority={ticket.priority} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: MUTED }}>Status</span>
+                  <StatusBadge status={ticket.status} />
+                </div>
+                {ticket.slaDeadline && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: MUTED }}>SLA Deadline</span>
+                    <span style={{ color: isOverdue ? URGENT : '#ffd43b', fontSize: '0.75rem' }}>
+                      {new Date(ticket.slaDeadline).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => {
+                    setTrackInput(ticket.trackingId);
+                    setShowTrackForm(false);
+                    handleTrackById(ticket.trackingId);
+                  }}
+                  style={{ flex: 1, padding: '7px 10px', borderRadius: 20, border: `1px solid ${ACCENT}44`, background: `${ACCENT}11`, color: ACCENT, cursor: 'pointer', fontSize: '0.75rem', fontWeight: 700, whiteSpace: 'nowrap' }}
+                >
+                  🔍 Track My Complaint
+                </button>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(ticket.trackingId).catch(() => {});
+                    addMsg({ role: 'assistant', type: 'text', content: `📋 Ticket ID **${ticket.trackingId}** copied!` });
+                  }}
+                  style={{ padding: '7px 10px', borderRadius: 20, border: `1px solid rgba(255,255,255,0.1)`, background: 'rgba(255,255,255,0.04)', color: '#ccc', cursor: 'pointer', fontSize: '0.75rem' }}
+                >
+                  📋 Copy ID
+                </button>
+              </div>
+
+              {/* Rating */}
+              {!ratingDone && (
+                <div style={{ marginTop: 14, borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 10 }}>
+                  <div style={{ color: MUTED, fontSize: '0.72rem', marginBottom: 6 }}>Rate your experience:</div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {[1, 2, 3, 4, 5].map(r => (
+                      <button key={r}
+                        onClick={() => {
+                          handleRating(ticket.trackingId, r, m.id);
+                          setMessages(prev => prev.map(x => x.id === m.id ? { ...x, meta: { ...x.meta, ratingDone: true } } : x));
+                        }}
+                        style={{ width: 28, height: 28, borderRadius: 8, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: '#ffd43b', cursor: 'pointer', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      >
+                        {r <= 3 ? '⭐' : r === 4 ? '🌟' : '💫'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {ratingDone && (
+                <div style={{ marginTop: 10, color: SUCCESS, fontSize: '0.75rem' }}>⭐ Thank you for your feedback!</div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ── Ticket track result ──
+    if (m.type === 'track' && m.meta?.ticket) {
+      const ticket = m.meta.ticket as TicketStatus;
+      const isOverdue = ticket.slaDeadline && new Date(ticket.slaDeadline) < new Date() && !ticket.resolvedAt;
+      return (
+        <div key={m.id} style={{ display: 'flex', justifyContent: 'flex-start', animation: 'cbFadeIn 0.3s ease' }}>
+          <div style={{ ...bubbleBase, maxWidth: '95%', padding: 0, overflow: 'hidden' }}>
+            <div style={{ background: 'rgba(77,171,247,0.1)', borderBottom: '1px solid rgba(77,171,247,0.2)', padding: '12px 14px' }}>
+              <div style={{ fontWeight: 700, color: '#4dabf7', fontSize: '0.9rem' }}>🔍 Ticket Status</div>
+              <div style={{ color: MUTED, fontSize: '0.72rem', marginTop: 2 }}>Tracking ID: <span style={{ color: ACCENT, fontFamily: 'monospace' }}>{ticket.trackingId}</span></div>
+            </div>
+            <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 6, fontSize: '0.8rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: MUTED }}>Category</span><span>{ticket.category}</span></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: MUTED }}>Priority</span><PriorityBadge priority={ticket.priority} /></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: MUTED }}>Status</span><StatusBadge status={ticket.status} /></div>
+              {ticket.slaDeadline && (
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: MUTED }}>SLA Deadline</span>
+                  <span style={{ color: isOverdue ? URGENT : '#ffd43b', fontSize: '0.75rem' }}>
+                    {new Date(ticket.slaDeadline).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    {isOverdue && ' ⚠️ Overdue'}
+                  </span>
+                </div>
+              )}
+              {ticket.resolvedAt && (
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: MUTED }}>Resolved</span><span style={{ color: SUCCESS }}>{new Date(ticket.resolvedAt).toLocaleDateString('en-IN')}</span></div>
+              )}
+              <div style={{ marginTop: 6, padding: '8px 10px', background: 'rgba(255,255,255,0.03)', borderRadius: 8, fontSize: '0.78rem', color: '#ccc' }}>
+                {ticket.description}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ── Keyword category selector (AI fallback) ──
+    if (m.type === 'keyword-select' && m.meta) {
+      const done = !!m.meta.done;
+      const { originalMessage, confidential, transcript } = m.meta as Record<string, unknown>;
+      return (
+        <div key={m.id} style={{ display: 'flex', justifyContent: 'flex-start', animation: 'cbFadeIn 0.3s ease' }}>
+          <div style={{ ...bubbleBase, maxWidth: '95%' }}>
+            <p style={{ marginBottom: 10 }}>{m.content}</p>
+            {!done && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {KEYWORD_CATEGORIES.map(cat => (
+                  <button key={cat}
+                    onClick={() => {
+                      setMessages(prev => prev.map(x => x.id === m.id ? { ...x, meta: { ...x.meta, done: true } } : x));
+                      addMsg({ role: 'assistant', type: 'text', content: `Got it — categorized as **${cat}**.\n\nShall I create a support ticket for the **${cat}** department?` });
+                      addMsg({
+                        role: 'assistant', type: 'ticket', content: '',
+                        meta: { description: originalMessage, category: cat, urgency: 'Routine', confidence: 0.4, transcript, confidential },
+                      });
+                    }}
+                    style={{ padding: '5px 12px', borderRadius: 20, border: `1px solid ${BORDER}`, background: `${ACCENT}0D`, color: ACCENT, cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 }}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            )}
+            {done && <div style={{ color: MUTED, fontSize: '0.75rem', marginTop: 4 }}>Category selected ✓</div>}
+          </div>
+        </div>
+      );
+    }
+
+    // ── Default text bubble ──
+    return (
+      <div key={m.id} style={{ display: 'flex', justifyContent: 'flex-start', animation: 'cbFadeIn 0.3s ease' }}>
+        <div style={bubbleBase}>
+          {renderMarkdown(m.content)}
+        </div>
+      </div>
+    );
+  }
+
+  async function handleTrackById(id: string) {
+    addMsg({ role: 'user', type: 'text', content: `Track ticket: ${id}` });
+    setLoading(true);
+    try {
+      const ticket = await trackTicket(id);
+      addMsg({ role: 'assistant', type: 'track', content: '', meta: { ticket } });
+    } catch {
+      addMsg({ role: 'assistant', type: 'text', content: `❌ Ticket **${id}** not found.` });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     RENDER
+     ══════════════════════════════════════════════════════════════ */
+  const showQuickSuggestions = messages.length <= 1 && !loading;
+  const hasUnread = !isOpen && messages.some(m => m.role === 'assistant' && m.type === 'ticket-confirm');
+
   return (
     <>
-      {/* Chat panel */}
+      {/* ── Chat panel ── */}
       <div
-        id="campx-chatbot-panel"
+        id="campx-assist-panel"
         style={{
           position: 'fixed', bottom: 90, right: 24, zIndex: 99999,
-          width: 370, height: 530,
+          width: 390, maxHeight: 580,
           background: BG, border: `1px solid ${BORDER}`,
-          borderRadius: 20, boxShadow: '0 12px 50px rgba(0,0,0,0.6), 0 0 30px rgba(245,200,66,0.08)',
+          borderRadius: 20, boxShadow: `0 16px 60px rgba(0,0,0,0.7), 0 0 40px rgba(204,255,0,0.06)`,
           display: 'flex', flexDirection: 'column', overflow: 'hidden',
           transform: isOpen ? 'translateY(0) scale(1)' : 'translateY(20px) scale(0.95)',
           opacity: isOpen ? 1 : 0,
@@ -252,170 +751,235 @@ export default function ChatbotWidget() {
           transition: 'transform 0.3s cubic-bezier(0.16,1,0.3,1), opacity 0.25s ease',
         }}
       >
-        {/* Header */}
+        {/* ── Header ── */}
         <div style={{
-          padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 10,
-          background: `linear-gradient(135deg, ${BG2}, #222)`,
-          borderBottom: `1px solid ${BORDER}`,
+          padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10,
+          background: `linear-gradient(135deg, ${BG2}, ${BG3})`,
+          borderBottom: `1px solid ${BORDER}`, flexShrink: 0,
         }}>
           <div style={{
-            width: 36, height: 36, borderRadius: 12,
-            background: `linear-gradient(135deg, ${Y}, #e0ad00)`,
+            width: 38, height: 38, borderRadius: 12,
+            background: `linear-gradient(135deg, ${ACCENT}, #aad900)`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 18, boxShadow: `0 2px 12px rgba(245,200,66,0.3)`,
+            fontSize: 20, boxShadow: `0 2px 12px rgba(204,255,0,0.3)`, flexShrink: 0,
           }}>🤖</div>
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 700, fontSize: '0.95rem', color: '#fff', letterSpacing: '-0.3px' }}>
-              CampX AI
+              CampX Assist
             </div>
-            <div style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.4)', fontWeight: 500 }}>
-              Always here to help
+            <div style={{ fontSize: '0.68rem', color: MUTED }}>
+              {isLoggedIn ? `Hi, ${user?.name?.split(' ')[0] || 'Student'}! Always here to help.` : 'Sign in to get started'}
             </div>
           </div>
+
+          {/* Confidential toggle */}
+          <div
+            onClick={() => setIsConfidential(v => !v)}
+            title={isConfidential ? 'Confidential mode ON' : 'Enable confidential mode'}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 4,
+              padding: '4px 10px', borderRadius: 20,
+              background: isConfidential ? 'rgba(255,107,107,0.15)' : 'rgba(255,255,255,0.05)',
+              border: `1px solid ${isConfidential ? 'rgba(255,107,107,0.4)' : 'rgba(255,255,255,0.1)'}`,
+              cursor: 'pointer', transition: 'all 0.2s',
+            }}
+          >
+            <span style={{ fontSize: 13 }}>{isConfidential ? '🔒' : '🔓'}</span>
+            <span style={{ fontSize: '0.65rem', color: isConfidential ? URGENT : MUTED, fontWeight: 600, whiteSpace: 'nowrap' }}>
+              {isConfidential ? 'Confidential' : 'Private'}
+            </span>
+          </div>
+
           <button onClick={() => setIsOpen(false)} style={{
-            width: 30, height: 30, borderRadius: 8, border: 'none',
-            background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.5)',
-            cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            transition: 'background 0.2s',
+            width: 28, height: 28, borderRadius: 8, border: 'none',
+            background: 'rgba(255,255,255,0.06)', color: MUTED,
+            cursor: 'pointer', fontSize: 15, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            transition: 'background 0.2s', flexShrink: 0,
           }}
             onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.12)'}
             onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
           >✕</button>
         </div>
 
-        {/* Messages */}
+        {/* Confidential banner */}
+        {isConfidential && (
+          <div style={{
+            padding: '6px 16px', background: 'rgba(255,107,107,0.08)',
+            borderBottom: '1px solid rgba(255,107,107,0.2)',
+            fontSize: '0.72rem', color: URGENT, flexShrink: 0,
+          }}>
+            🔒 <strong>Confidential mode active.</strong> Your identity is restricted to authorized grievance staff only.
+          </div>
+        )}
+
+        {/* ── Messages ── */}
         <div ref={scrollRef} style={{
           flex: 1, overflowY: 'auto', padding: '14px 14px 8px',
           display: 'flex', flexDirection: 'column', gap: 10,
           scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.08) transparent',
         }}>
-          {messages.map((m, i) => (
-            <div key={i} style={{
-              display: 'flex', justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start',
-              animation: 'cbFadeIn 0.3s ease',
-            }}>
-              <div style={{
-                maxWidth: '82%', padding: '10px 14px', borderRadius: 14,
-                fontSize: '0.84rem', lineHeight: 1.55, wordBreak: 'break-word',
-                ...(m.role === 'user'
-                  ? { background: `linear-gradient(135deg, ${Y}, #e0b800)`, color: '#000', borderBottomRightRadius: 4 }
-                  : { background: BG2, color: '#e0e0e0', border: `1px solid rgba(255,255,255,0.06)`, borderBottomLeftRadius: 4 }),
-              }}>
-                {renderMarkdown(m.content)}
-              </div>
-            </div>
-          ))}
+          {messages.map(renderMessage)}
 
           {/* Typing indicator */}
           {loading && (
             <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
               <div style={{
-                background: BG2, border: `1px solid rgba(255,255,255,0.06)`,
-                borderRadius: 14, padding: '12px 18px', display: 'flex', gap: 5, alignItems: 'center',
+                background: BG2, border: '1px solid rgba(255,255,255,0.06)',
+                borderRadius: '4px 14px 14px 14px', padding: '12px 18px',
+                display: 'flex', gap: 5, alignItems: 'center',
               }}>
                 {[0, 1, 2].map(d => (
                   <div key={d} style={{
-                    width: 7, height: 7, borderRadius: '50%', background: Y, opacity: 0.7,
+                    width: 7, height: 7, borderRadius: '50%',
+                    background: ACCENT, opacity: 0.7,
                     animation: `cbBounce 1.2s ease-in-out ${d * 0.15}s infinite`,
                   }} />
                 ))}
               </div>
             </div>
           )}
+
+          {/* Track form inline */}
+          {showTrackForm && (
+            <div style={{ display: 'flex', gap: 6, padding: '4px 0', animation: 'cbFadeIn 0.3s ease' }}>
+              <input
+                value={trackInput}
+                onChange={e => setTrackInput(e.target.value.toUpperCase())}
+                onKeyDown={e => { if (e.key === 'Enter') handleTrack(); }}
+                placeholder="CXA-XXXXXXXX"
+                style={{
+                  flex: 1, padding: '8px 12px', borderRadius: 10,
+                  border: `1px solid ${BORDER}`, background: 'rgba(255,255,255,0.04)',
+                  color: '#fff', fontSize: '0.82rem', outline: 'none', fontFamily: 'monospace',
+                }}
+                onFocus={e => e.currentTarget.style.borderColor = `${ACCENT}66`}
+                onBlur={e => e.currentTarget.style.borderColor = BORDER}
+                autoFocus
+              />
+              <button onClick={handleTrack} style={{ padding: '8px 14px', borderRadius: 10, border: 'none', background: `linear-gradient(135deg, ${ACCENT}, #aad900)`, color: '#000', fontWeight: 700, cursor: 'pointer', fontSize: '0.8rem' }}>
+                Track
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* Quick actions (only show at start) */}
-        {messages.length <= 2 && !loading && (
-          <div style={{
-            padding: '0 14px 8px', display: 'flex', flexWrap: 'wrap', gap: 6,
-          }}>
-            {QUICK_ACTIONS.map(qa => (
-              <button key={qa.label} onClick={() => sendMessage(qa.msg)} style={{
+        {/* ── Quick suggestions ── */}
+        {showQuickSuggestions && isLoggedIn && (
+          <div style={{ padding: '0 14px 8px', display: 'flex', flexWrap: 'wrap', gap: 5, flexShrink: 0 }}>
+            {QUICK_SUGGESTIONS.map(s => (
+              <button key={s.label} onClick={() => sendMessage(s.msg)} style={{
                 padding: '5px 10px', borderRadius: 8, border: `1px solid ${BORDER}`,
-                background: 'rgba(245,200,66,0.06)', color: 'rgba(255,255,255,0.7)',
-                cursor: 'pointer', fontSize: '0.7rem', fontWeight: 600,
-                transition: 'all 0.2s', whiteSpace: 'nowrap',
+                background: `${ACCENT}0D`, color: 'rgba(255,255,255,0.75)',
+                cursor: 'pointer', fontSize: '0.7rem', fontWeight: 600, whiteSpace: 'nowrap',
+                transition: 'all 0.2s',
               }}
-                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(245,200,66,0.15)'; e.currentTarget.style.color = Y; }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(245,200,66,0.06)'; e.currentTarget.style.color = 'rgba(255,255,255,0.7)'; }}
-              >{qa.label}</button>
+                onMouseEnter={e => { e.currentTarget.style.background = `${ACCENT}22`; e.currentTarget.style.color = ACCENT; }}
+                onMouseLeave={e => { e.currentTarget.style.background = `${ACCENT}0D`; e.currentTarget.style.color = 'rgba(255,255,255,0.75)'; }}
+              >
+                {s.label}
+              </button>
             ))}
           </div>
         )}
 
-        {/* Input area */}
+        {/* ── Action bar (My Tickets, Track) ── */}
+        {isLoggedIn && messages.length > 1 && !showTrackForm && (
+          <div style={{ padding: '0 14px 8px', display: 'flex', gap: 6, flexShrink: 0 }}>
+            <button onClick={handleMyTickets} style={{
+              flex: 1, padding: '5px 8px', borderRadius: 8, border: `1px solid rgba(255,255,255,0.08)`,
+              background: 'rgba(255,255,255,0.03)', color: MUTED, cursor: 'pointer', fontSize: '0.7rem',
+              transition: 'all 0.2s',
+            }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = `${ACCENT}44`; e.currentTarget.style.color = ACCENT; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = MUTED; }}
+            >
+              📋 My Tickets
+            </button>
+            <button onClick={() => setShowTrackForm(v => !v)} style={{
+              flex: 1, padding: '5px 8px', borderRadius: 8, border: `1px solid rgba(255,255,255,0.08)`,
+              background: 'rgba(255,255,255,0.03)', color: MUTED, cursor: 'pointer', fontSize: '0.7rem',
+              transition: 'all 0.2s',
+            }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = `${ACCENT}44`; e.currentTarget.style.color = ACCENT; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = MUTED; }}
+            >
+              🔍 Track Ticket
+            </button>
+          </div>
+        )}
+
+        {/* ── Input area ── */}
         <div style={{
           padding: '10px 14px 14px', display: 'flex', gap: 8, alignItems: 'center',
-          borderTop: `1px solid rgba(255,255,255,0.06)`,
-          background: BG2,
+          borderTop: '1px solid rgba(255,255,255,0.06)', background: BG2, flexShrink: 0,
         }}>
-          <button onClick={toggleVoice} title="Voice input" style={{
-            width: 36, height: 36, borderRadius: 10, border: 'none', flexShrink: 0,
-            background: isListening ? 'rgba(255,60,60,0.2)' : 'rgba(255,255,255,0.06)',
-            color: isListening ? '#ff4444' : 'rgba(255,255,255,0.5)',
-            cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            transition: 'all 0.2s',
-            animation: isListening ? 'cbPulse 1.5s ease infinite' : 'none',
-          }}>🎤</button>
-
           <input
             ref={inputRef}
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={waitingForCity ? 'Enter city name...' : 'Ask me anything...'}
+            placeholder={isLoggedIn ? 'Ask me anything about college…' : 'Sign in to chat…'}
+            disabled={!isLoggedIn || loading}
             style={{
               flex: 1, padding: '10px 14px', borderRadius: 12,
               border: `1px solid rgba(255,255,255,0.08)`, background: 'rgba(255,255,255,0.04)',
-              color: '#fff', fontSize: '0.85rem', outline: 'none',
-              transition: 'border-color 0.2s',
-              fontFamily: "'Inter', sans-serif",
+              color: '#fff', fontSize: '0.85rem', outline: 'none', transition: 'border-color 0.2s',
+              opacity: isLoggedIn ? 1 : 0.5,
             }}
-            onFocus={e => e.currentTarget.style.borderColor = 'rgba(245,200,66,0.3)'}
+            onFocus={e => e.currentTarget.style.borderColor = `${ACCENT}44`}
             onBlur={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'}
           />
+          <button
+            onClick={() => sendMessage()}
+            disabled={loading || !input.trim() || !isLoggedIn}
+            style={{
+              width: 36, height: 36, borderRadius: 10, border: 'none', flexShrink: 0,
+              background: input.trim() && isLoggedIn ? `linear-gradient(135deg, ${ACCENT}, #aad900)` : 'rgba(255,255,255,0.06)',
+              color: input.trim() && isLoggedIn ? '#000' : 'rgba(255,255,255,0.3)',
+              cursor: input.trim() && isLoggedIn ? 'pointer' : 'default',
+              fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'all 0.2s', fontWeight: 700,
+            }}
+          >➤</button>
+        </div>
 
-          <button onClick={() => sendMessage()} disabled={loading || !input.trim()} style={{
-            width: 36, height: 36, borderRadius: 10, border: 'none', flexShrink: 0,
-            background: input.trim() ? `linear-gradient(135deg, ${Y}, #e0b800)` : 'rgba(255,255,255,0.06)',
-            color: input.trim() ? '#000' : 'rgba(255,255,255,0.3)',
-            cursor: input.trim() ? 'pointer' : 'default', fontSize: 16,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            transition: 'all 0.2s', fontWeight: 700,
-          }}>➤</button>
+        {/* Footer */}
+        <div style={{ padding: '4px 14px 8px', textAlign: 'center', flexShrink: 0 }}>
+          <span style={{ fontSize: '0.62rem', color: 'rgba(255,255,255,0.2)' }}>
+            CampX Assist · {formatTime(new Date())} · Powered by Gemini AI
+          </span>
         </div>
       </div>
 
-      {/* Floating button */}
+      {/* ── Floating button ── */}
       <button
-        id="campx-chatbot-btn"
+        id="campx-assist-btn"
         onClick={() => setIsOpen(v => !v)}
+        title="CampX Assist"
         style={{
           position: 'fixed', bottom: 24, right: 24, zIndex: 99999,
           width: 56, height: 56, borderRadius: '50%', border: 'none',
-          background: `linear-gradient(135deg, ${Y}, #e0ad00)`,
+          background: `linear-gradient(135deg, ${ACCENT}, #aad900)`,
           color: '#000', cursor: 'pointer', fontSize: 24,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: `0 4px 20px rgba(245,200,66,0.4), 0 0 40px rgba(245,200,66,0.1)`,
+          boxShadow: `0 4px 20px rgba(204,255,0,0.4), 0 0 40px rgba(204,255,0,0.1)`,
           transition: 'transform 0.3s cubic-bezier(0.16,1,0.3,1), box-shadow 0.3s',
         }}
-        onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1)'; e.currentTarget.style.boxShadow = `0 6px 30px rgba(245,200,66,0.5)`; }}
-        onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = `0 4px 20px rgba(245,200,66,0.4)`; }}
+        onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1)'; e.currentTarget.style.boxShadow = `0 6px 30px rgba(204,255,0,0.5)`; }}
+        onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = `0 4px 20px rgba(204,255,0,0.4), 0 0 40px rgba(204,255,0,0.1)`; }}
       >
-        {isOpen ? '✕' : '💬'}
+        {isOpen ? '✕' : hasUnread ? '🔔' : '💬'}
       </button>
 
-      {/* Animations & responsive */}
+      {/* ── Animations ── */}
       <style>{`
         @keyframes cbFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes cbBounce { 0%, 80%, 100% { transform: scale(0.6); } 40% { transform: scale(1.2); } }
-        @keyframes cbPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(255,60,60,0.4); } 50% { box-shadow: 0 0 0 8px rgba(255,60,60,0); } }
-        #campx-chatbot-panel::-webkit-scrollbar { width: 4px; }
-        #campx-chatbot-panel *::-webkit-scrollbar { width: 4px; }
-        #campx-chatbot-panel *::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+        #campx-assist-panel *::-webkit-scrollbar { width: 4px; }
+        #campx-assist-panel *::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
         @media (max-width: 480px) {
-          #campx-chatbot-panel { width: calc(100vw - 16px) !important; right: 8px !important; bottom: 80px !important; height: 70vh !important; border-radius: 16px !important; }
-          #campx-chatbot-btn { bottom: 16px !important; right: 16px !important; }
+          #campx-assist-panel { width: calc(100vw - 16px) !important; right: 8px !important; bottom: 82px !important; max-height: 72vh !important; border-radius: 16px !important; }
+          #campx-assist-btn { bottom: 16px !important; right: 16px !important; }
         }
       `}</style>
     </>

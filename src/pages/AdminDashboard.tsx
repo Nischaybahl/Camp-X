@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, Users, BookOpen, AlertCircle, Bell, 
-  MessageSquare, BarChart3,
-  LogOut, Clock, XCircle
+  MessageSquare, BarChart3, Bot,
+  LogOut, Clock, XCircle, Sparkles, RefreshCw, CheckCircle, ShieldAlert
 } from 'lucide-react';
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import './AdminDashboard.css';
+import { fetchAnalytics, seedKnowledgeBase, updateTicketStatus, type AnalyticsData } from '../utils/chatbotApi';
 
 const BACKEND_URL = import.meta.env.VITE_API_URL || 'https://camp-x.onrender.com/api';
 
@@ -101,6 +103,7 @@ const AdminDashboard: React.FC = () => {
       case 'complaints': return <ComplaintsSection />;
       case 'announcements': return <AnnouncementsSection />;
       case 'analytics': return <AnalyticsSection stats={stats} />;
+      case 'chatbot': return <ChatbotAnalyticsSection />;
       default: return <div className="section-placeholder">Feature coming soon</div>;
     }
   };
@@ -116,13 +119,14 @@ const AdminDashboard: React.FC = () => {
           <NavItem active={activeTab === 'complaints'} onClick={() => setActiveTab('complaints')} icon={<MessageSquare size={20} />} label="Complaints" />
           <NavItem active={activeTab === 'announcements'} onClick={() => setActiveTab('announcements')} icon={<Bell size={20} />} label="Announcements" />
           <NavItem active={activeTab === 'analytics'} onClick={() => setActiveTab('analytics')} icon={<BarChart3 size={20} />} label="Analytics" />
+          <NavItem active={activeTab === 'chatbot'} onClick={() => setActiveTab('chatbot')} icon={<Bot size={20} />} label="CampX Assist" />
         </nav>
         <button className="logout-btn"><LogOut size={20} /> <span>Logout</span></button>
       </aside>
 
       <main className="admin-main">
         <header className="admin-header">
-          <h1 className="page-title">{activeTab.toUpperCase()}</h1>
+          <h1 className="page-title">{activeTab === 'chatbot' ? 'CAMPX ASSIST AI' : activeTab.toUpperCase()}</h1>
           <div className="header-right">
             <div className="admin-profile"><div className="avatar">AD</div></div>
           </div>
@@ -414,6 +418,387 @@ const AnalyticsSection = ({ stats }: { stats: any }) => (
         </div>
     </div>
 );
+
+const CHATBOT_COLORS = ['#ccff00', '#00d4ff', '#ff6b6b', '#ffd166', '#06d6a0', '#118ab2', '#9d4edd', '#f72585'];
+
+const ChatbotAnalyticsSection: React.FC = () => {
+  const [data, setData] = useState<AnalyticsData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [seeding, setSeeding] = useState(false);
+  const [seedNotice, setSeedNotice] = useState<string | null>(null);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await fetchAnalytics();
+      setData(res);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to load chatbot analytics';
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const handleSeed = async () => {
+    try {
+      setSeeding(true);
+      const res = await seedKnowledgeBase();
+      setSeedNotice(res.message || 'Knowledge base seeded successfully!');
+      setTimeout(() => setSeedNotice(null), 5000);
+      await loadData();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Seed failed';
+      alert('Error seeding KB: ' + msg);
+    } finally {
+      setSeeding(false);
+    }
+  };
+
+  const handleStatusChange = async (trackingId: string, newStatus: string) => {
+    try {
+      setUpdatingId(trackingId);
+      await updateTicketStatus(trackingId, newStatus);
+      if (data) {
+        setData({
+          ...data,
+          recentTickets: data.recentTickets.map(t =>
+            t.trackingId === trackingId ? { ...t, status: newStatus } : t
+          ),
+        });
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Update failed';
+      alert('Failed to update ticket status: ' + msg);
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="admin-loading fade-in">
+        <div className="spinner"></div>
+        <p>Loading CampX Assist AI metrics...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="admin-error fade-in">
+        <AlertCircle size={20} />
+        <span>{error}</span>
+        <button className="admin-btn-primary" onClick={loadData} style={{ padding: '6px 14px', fontSize: '0.85rem' }}>Retry</button>
+      </div>
+    );
+  }
+
+  const categoryChartData = (data?.categoryBreakdown || []).filter(c => c.value > 0);
+  const statusChartData = data?.statusBreakdown || [];
+
+  return (
+    <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+      {/* Top Banner / Actions */}
+      <div style={{
+        background: 'linear-gradient(135deg, rgba(204,255,0,0.1) 0%, rgba(0,212,255,0.05) 100%)',
+        border: '1px solid rgba(204,255,0,0.2)',
+        borderRadius: '20px',
+        padding: '1.5rem 2rem',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: '1rem',
+      }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+            <Sparkles size={20} color="var(--accent)" />
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 800 }}>CampX Assist AI Governance & Redressal</h2>
+          </div>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+            Real-time analytics, SLA grievance tracking, and AI knowledge base controls.
+          </p>
+        </div>
+
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <button
+            onClick={loadData}
+            title="Refresh metrics"
+            style={{
+              background: 'rgba(255,255,255,0.06)',
+              border: '1px solid var(--border)',
+              color: 'var(--text-main)',
+              borderRadius: '12px',
+              padding: '10px 16px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '0.85rem',
+              fontWeight: 600,
+            }}
+          >
+            <RefreshCw size={14} /> Refresh
+          </button>
+
+          <button
+            onClick={handleSeed}
+            disabled={seeding}
+            style={{
+              background: 'var(--accent)',
+              border: 'none',
+              color: '#000',
+              borderRadius: '12px',
+              padding: '10px 18px',
+              cursor: seeding ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '0.85rem',
+              fontWeight: 700,
+              opacity: seeding ? 0.7 : 1,
+            }}
+          >
+            <Sparkles size={14} /> {seeding ? 'Seeding KB...' : 'Seed FAQ Knowledge Base'}
+          </button>
+        </div>
+      </div>
+
+      {seedNotice && (
+        <div style={{
+          background: 'rgba(40, 167, 69, 0.15)',
+          border: '1px solid rgba(40, 167, 69, 0.4)',
+          color: '#28a745',
+          borderRadius: '12px',
+          padding: '12px 18px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          fontSize: '0.9rem',
+        }}>
+          <CheckCircle size={18} /> {seedNotice}
+        </div>
+      )}
+
+      {/* KPI Stats Grid */}
+      <div className="stats-grid">
+        <StatCard label="Total Student Queries" value={data?.totalQueries || 0} icon={<Bot />} />
+        <StatCard label="AI Deflection Rate" value={`${data?.deflectionRate || 0}%`} icon={<Sparkles />} />
+        <StatCard label="Tickets Escalated" value={data?.totalTickets || 0} icon={<AlertCircle />} />
+        <StatCard label="Urgent / Sensitive Cases" value={(data?.urgentCount || 0) + (data?.sensitiveCount || 0)} icon={<ShieldAlert />} />
+        <StatCard label="Confidential Inquiries" value={data?.confidentialCount || 0} icon={<Users />} />
+        <StatCard label="Avg Satisfaction Rating" value={data?.avgRating ? `${data.avgRating} / 5` : 'N/A'} icon={<BarChart3 />} />
+      </div>
+
+      {/* Charts Section */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
+        {/* Category Breakdown */}
+        <div style={{
+          background: 'var(--card-bg)',
+          borderRadius: '20px',
+          border: '1px solid var(--border)',
+          padding: '1.5rem',
+          display: 'flex',
+          flexDirection: 'column',
+        }}>
+          <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1rem' }}>Tickets by Category</h3>
+          <div style={{ width: '100%', height: 260 }}>
+            {categoryChartData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={categoryChartData}
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    dataKey="value"
+                    label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
+                    labelLine={false}
+                  >
+                    {categoryChartData.map((_, index) => (
+                      <Cell key={`cell-${index}`} fill={CHATBOT_COLORS[index % CHATBOT_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{ background: '#1b1e24', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
+                    itemStyle={{ color: '#fff' }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)' }}>
+                No ticket category data yet.
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Status Breakdown */}
+        <div style={{
+          background: 'var(--card-bg)',
+          borderRadius: '20px',
+          border: '1px solid var(--border)',
+          padding: '1.5rem',
+          display: 'flex',
+          flexDirection: 'column',
+        }}>
+          <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1rem' }}>Ticket Resolution Status</h3>
+          <div style={{ width: '100%', height: 260 }}>
+            {statusChartData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={statusChartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                  <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={12} />
+                  <YAxis stroke="var(--text-muted)" fontSize={12} allowDecimals={false} />
+                  <Tooltip
+                    contentStyle={{ background: '#1b1e24', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
+                    itemStyle={{ color: '#fff' }}
+                  />
+                  <Bar dataKey="value" fill="#ccff00" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)' }}>
+                No status data yet.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Recent Chatbot Tickets Table */}
+      <div style={{
+        background: 'var(--card-bg)',
+        borderRadius: '20px',
+        border: '1px solid var(--border)',
+        padding: '1.5rem',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+          <div>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Recent AI Redressal Tickets</h3>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+              Manage and update status for tickets generated through CampX Assist.
+            </p>
+          </div>
+        </div>
+
+        <div style={{ overflowX: 'auto' }}>
+          <table className="admin-table" style={{ width: '100%' }}>
+            <thead>
+              <tr>
+                <th>Tracking ID</th>
+                <th>Category</th>
+                <th>Urgency</th>
+                <th>Priority</th>
+                <th>SLA Target</th>
+                <th>Confidential</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(data?.recentTickets || []).length > 0 ? (
+                data!.recentTickets.map(t => {
+                  const isOverdue = t.overdue;
+                  const isUpdating = updatingId === t.trackingId;
+
+                  return (
+                    <tr key={t.id || t.trackingId}>
+                      <td>
+                        <strong style={{ fontFamily: 'monospace', color: 'var(--accent)' }}>
+                          {t.trackingId}
+                        </strong>
+                      </td>
+                      <td>{t.category}</td>
+                      <td>
+                        <span style={{
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                          background: t.urgency === 'Urgent' ? 'rgba(255,60,60,0.15)' : t.urgency === 'Sensitive' ? 'rgba(255,165,0,0.15)' : 'rgba(255,255,255,0.06)',
+                          color: t.urgency === 'Urgent' ? '#ff4444' : t.urgency === 'Sensitive' ? '#ffa500' : 'var(--text-main)',
+                        }}>
+                          {t.urgency || 'Routine'}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`badge ${t.priority === 'urgent' ? 'badge-danger' : t.priority === 'high' ? 'badge-warning' : 'badge-success'}`}>
+                          {t.priority}
+                        </span>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ fontSize: '0.8rem', color: isOverdue ? '#ff4444' : 'var(--text-muted)' }}>
+                            {t.slaDeadline ? new Date(t.slaDeadline).toLocaleDateString() : 'N/A'}
+                          </span>
+                          {isOverdue && (
+                            <span style={{
+                              background: 'rgba(255,60,60,0.2)',
+                              color: '#ff4444',
+                              borderRadius: '4px',
+                              padding: '2px 5px',
+                              fontSize: '0.65rem',
+                              fontWeight: 800,
+                            }}>
+                              OVERDUE
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td>
+                        {t.isConfidential ? (
+                          <span style={{ color: '#00d4ff', fontSize: '0.8rem', fontWeight: 600 }}>🔒 Yes</span>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>No</span>
+                        )}
+                      </td>
+                      <td>
+                        <select
+                          value={t.status}
+                          disabled={isUpdating}
+                          onChange={e => handleStatusChange(t.trackingId, e.target.value)}
+                          style={{
+                            background: 'var(--activity-bg)',
+                            color: 'var(--text-main)',
+                            border: '1px solid var(--border)',
+                            borderRadius: '8px',
+                            padding: '6px 10px',
+                            fontSize: '0.8rem',
+                            cursor: 'pointer',
+                            outline: 'none',
+                          }}
+                        >
+                          <option value="Open">Open</option>
+                          <option value="In Progress">In Progress</option>
+                          <option value="Resolved">Resolved</option>
+                          <option value="Closed">Closed</option>
+                        </select>
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan={7} style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--text-muted)' }}>
+                    No chatbot tickets logged yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const StatCard = ({ label, value, icon }: any) => (
   <div className="stat-card">

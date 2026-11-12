@@ -20,6 +20,7 @@ import ResumeAnalyzer from './pages/ResumeAnalyzer';
 
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
+import ChatbotWidget from './components/ChatbotWidget';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const user = localStorage.getItem('campx_current_user');
@@ -203,6 +204,9 @@ function MainApp() {
           <Route path="/reset-password/:token" element={<ResetPassword />} />
         </Routes>
       </div>
+
+      {/* CampX Assist – floating chatbot available on all pages */}
+      <ChatbotWidget />
     </div>
   );
 }
