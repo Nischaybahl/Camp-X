@@ -295,8 +295,15 @@ export default function ChatbotWidget() {
       const result = await sendChatMessage(msg, isConfidential);
       await handleClassificationResult(result, msg, isConfidential);
     } catch (err: unknown) {
-      const errMsg = err instanceof Error ? err.message : 'Unknown error';
-      addMsg({ role: 'assistant', type: 'text', content: `❌ ${errMsg || 'Something went wrong. Please try again.'}` });
+      const errMsg = err instanceof Error ? err.message : '';
+      // Backend may be cold-starting on Render (free tier sleeps)
+      const isNetworkError = errMsg.includes('Failed to fetch') || errMsg.includes('NetworkError') || errMsg.includes('ECONNREFUSED');
+      addMsg({
+        role: 'assistant', type: 'text',
+        content: isNetworkError
+          ? '⏳ The server is waking up (Render free tier cold start). Please wait **10–15 seconds** and try again.'
+          : `❌ Failed to process message. Please try again.\n\n_If this keeps happening, the AI backend may still be deploying._`,
+      });
     } finally {
       setLoading(false);
     }
@@ -339,8 +346,15 @@ export default function ChatbotWidget() {
           });
         });
       }
-    } catch {
-      addMsg({ role: 'assistant', type: 'text', content: '❌ Failed to load your tickets. Please try again.' });
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : '';
+      const isNetworkError = errMsg.includes('Failed to fetch') || errMsg.includes('NetworkError');
+      addMsg({
+        role: 'assistant', type: 'text',
+        content: isNetworkError
+          ? '⏳ The server is still waking up. Please wait a moment and try again.'
+          : '❌ Failed to load your tickets. Please try again in a moment.',
+      });
     } finally {
       setLoading(false);
     }
@@ -741,7 +755,7 @@ export default function ChatbotWidget() {
         id="campx-assist-panel"
         style={{
           position: 'fixed', bottom: 90, right: 24, zIndex: 99999,
-          width: 390, maxHeight: 580,
+          width: 440, maxHeight: 660,
           background: BG, border: `1px solid ${BORDER}`,
           borderRadius: 20, boxShadow: `0 16px 60px rgba(0,0,0,0.7), 0 0 40px rgba(204,255,0,0.06)`,
           display: 'flex', flexDirection: 'column', overflow: 'hidden',
@@ -977,8 +991,8 @@ export default function ChatbotWidget() {
         @keyframes cbBounce { 0%, 80%, 100% { transform: scale(0.6); } 40% { transform: scale(1.2); } }
         #campx-assist-panel *::-webkit-scrollbar { width: 4px; }
         #campx-assist-panel *::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
-        @media (max-width: 480px) {
-          #campx-assist-panel { width: calc(100vw - 16px) !important; right: 8px !important; bottom: 82px !important; max-height: 72vh !important; border-radius: 16px !important; }
+        @media (max-width: 520px) {
+          #campx-assist-panel { width: calc(100vw - 16px) !important; right: 8px !important; bottom: 82px !important; max-height: 80vh !important; border-radius: 16px !important; }
           #campx-assist-btn { bottom: 16px !important; right: 16px !important; }
         }
       `}</style>
