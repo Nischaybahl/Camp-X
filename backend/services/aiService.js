@@ -99,7 +99,7 @@ async function callGemini(text, faqContext) {
   const prompt = buildPrompt(text, faqContext);
   const result = await httpsPost(
     'generativelanguage.googleapis.com',
-    `/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`,
+    `/v1beta/models/gemini-3.5-flash-lite:generateContent?key=${key}`,
     {},
     { contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.2, maxOutputTokens: 512 } }
   );
