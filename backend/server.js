@@ -194,9 +194,12 @@ app.get('/api/health', (req, res) => {
 });
 
 // ========================
-// CAMPX ASSIST – CHATBOT
+// CAMPX ASSIST – CHATBOT (SDS Endpoints)
 // ========================
 app.use('/api/chatbot', chatbotRouter);
+if (chatbotRouter.handleCreateTicket) {
+    app.post('/api/tickets/auto', chatbotRouter.handleCreateTicket);
+}
 
 // ========================
 // USER AUTH ROUTES

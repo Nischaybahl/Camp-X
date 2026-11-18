@@ -26,3 +26,4 @@ backend/.env
 *.sw?
 *.mp4
 *.mov
+*.zip

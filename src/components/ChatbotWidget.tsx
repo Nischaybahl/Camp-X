@@ -107,14 +107,19 @@ export default function ChatbotWidget() {
 
   /* ── Load history when first opened ─────────────────────────── */
   useEffect(() => {
-    if (!isOpen || historyLoaded || !isLoggedIn) return;
+    if (!isOpen || historyLoaded) return;
     setHistoryLoaded(true);
 
     const welcome: Message = {
       id: uid(), role: 'assistant', type: 'text',
-      content: `Hey! 👋 I'm **CampX Assist**. How can I help you today?`,
+      content: `Hey! 👋 I'm **CampX Assist**, your intelligent college guide. How can I help you today?`,
       timestamp: new Date(),
     };
+
+    if (!isLoggedIn) {
+      setMessages([welcome]);
+      return;
+    }
 
     loadChatHistory().then(({ messages: hist }) => {
       if (hist.length === 0) {
@@ -158,7 +163,7 @@ export default function ChatbotWidget() {
     if (result.isSensitive || result.urgency === 'Urgent') {
       addMsg({
         role: 'assistant', type: 'text',
-        content: `⚠️ I've detected this may be an **urgent or sensitive concern** (${result.category}).\n\nThis will be immediately escalated to the **Grievance Cell** as a high-priority ticket. Your privacy is protected.`,
+        content: `⚠️ I've detected this may be an **urgent or sensitive concern** (${result.category}).\n\nThis will be immediately escalated to the **Grievance Cell** as a high-priority ticket with a **4-hour SLA**. Your privacy is protected.`,
       });
 
       await autoCreateTicket({
@@ -167,7 +172,7 @@ export default function ChatbotWidget() {
         urgency: result.urgency,
         confidence: result.confidence,
         confidential,
-        anonymous: false,
+        anonymous: !isLoggedIn,
         transcript,
       });
       return;
@@ -193,30 +198,29 @@ export default function ChatbotWidget() {
       return;
     }
 
-    // ── No FAQ, low confidence, or fallback ──
-    if (result.usedFallback && result.provider === 'keyword') {
-      // Show category selection menu
+    // ── Conversational / Direct Answer (Greeting, general explanation, etc.) ──
+    if (result.answer) {
       addMsg({
-        role: 'assistant', type: 'keyword-select',
-        content: `I wasn't able to find a specific answer for your query. Please select the most relevant category so I can help you better:`,
-        meta: { originalMessage, confidential, transcript },
+        role: 'assistant', type: 'text',
+        content: result.answer,
       });
       return;
     }
 
-    // ── AI answered but no FAQ grounding ──
-    if (result.answer && result.confidence >= 0.65) {
+    // ── No FAQ & No direct answer: Offer specific department ticket or category selection ──
+    if (result.category && result.category !== 'Other') {
       addMsg({
-        role: 'assistant', type: 'faq',
-        content: result.answer,
+        role: 'assistant', type: 'text',
+        content: `I couldn't find a definitive FAQ entry for your question regarding **${result.category}**.\n\nWould you like me to create a support ticket so the **${result.category}** department can assist you directly?`,
+      });
+      addMsg({
+        role: 'assistant', type: 'ticket',
+        content: '',
         meta: {
+          description: originalMessage,
           category: result.category,
-          confidence: result.confidence,
-          sources: [],
-          originalMessage,
-          category_val: result.category,
           urgency: result.urgency,
-          confidence_val: result.confidence,
+          confidence: result.confidence,
           transcript,
           confidential,
         },
@@ -224,22 +228,11 @@ export default function ChatbotWidget() {
       return;
     }
 
-    // ── Offer ticket creation ──
+    // ── Low confidence or unknown category: show category selection menu ──
     addMsg({
-      role: 'assistant', type: 'text',
-      content: `I couldn't find a definitive answer for your query in **${result.category}**.\n\nWould you like me to create a support ticket so the relevant department can help you directly?`,
-    });
-    addMsg({
-      role: 'assistant', type: 'ticket',
-      content: '',
-      meta: {
-        description: originalMessage,
-        category: result.category,
-        urgency: result.urgency,
-        confidence: result.confidence,
-        transcript,
-        confidential,
-      },
+      role: 'assistant', type: 'keyword-select',
+      content: `I couldn't find an answer in our knowledge base for that query. Please select the relevant department below so I can route your ticket properly:`,
+      meta: { originalMessage, confidential, transcript },
     });
   }
 
@@ -272,12 +265,6 @@ export default function ChatbotWidget() {
     if (!msg || loading) return;
     setInput('');
     setShowTrackForm(false);
-
-    if (!isLoggedIn) {
-      addMsg({ role: 'user', type: 'text', content: msg });
-      addMsg({ role: 'assistant', type: 'text', content: '🔒 Please [sign in](/login) to use CampX Assist.' });
-      return;
-    }
 
     addMsg({ role: 'user', type: 'text', content: msg });
     setLoading(true);
@@ -878,7 +865,7 @@ export default function ChatbotWidget() {
         </div>
 
         {/* ── Quick suggestions ── */}
-        {showQuickSuggestions && isLoggedIn && (
+        {showQuickSuggestions && (
           <div style={{ padding: '0 14px 8px', display: 'flex', flexWrap: 'wrap', gap: 5, flexShrink: 0 }}>
             {QUICK_SUGGESTIONS.map(s => (
               <button key={s.label} onClick={() => sendMessage(s.msg)} style={{
@@ -897,7 +884,7 @@ export default function ChatbotWidget() {
         )}
 
         {/* ── Action bar (My Tickets, Track) ── */}
-        {isLoggedIn && messages.length > 1 && !showTrackForm && (
+        {messages.length > 1 && !showTrackForm && (
           <div style={{ padding: '0 14px 8px', display: 'flex', gap: 6, flexShrink: 0 }}>
             <button onClick={handleMyTickets} style={{
               flex: 1, padding: '5px 8px', borderRadius: 8, border: `1px solid rgba(255,255,255,0.08)`,
@@ -932,25 +919,24 @@ export default function ChatbotWidget() {
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={isLoggedIn ? 'Ask me anything about college…' : 'Sign in to chat…'}
-            disabled={!isLoggedIn || loading}
+            placeholder="Ask me anything about college…"
+            disabled={loading}
             style={{
               flex: 1, padding: '10px 14px', borderRadius: 12,
               border: `1px solid rgba(255,255,255,0.08)`, background: 'rgba(255,255,255,0.04)',
               color: '#fff', fontSize: '0.85rem', outline: 'none', transition: 'border-color 0.2s',
-              opacity: isLoggedIn ? 1 : 0.5,
             }}
             onFocus={e => e.currentTarget.style.borderColor = `${ACCENT}44`}
             onBlur={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'}
           />
           <button
             onClick={() => sendMessage()}
-            disabled={loading || !input.trim() || !isLoggedIn}
+            disabled={loading || !input.trim()}
             style={{
               width: 36, height: 36, borderRadius: 10, border: 'none', flexShrink: 0,
-              background: input.trim() && isLoggedIn ? `linear-gradient(135deg, ${ACCENT}, #aad900)` : 'rgba(255,255,255,0.06)',
-              color: input.trim() && isLoggedIn ? '#000' : 'rgba(255,255,255,0.3)',
-              cursor: input.trim() && isLoggedIn ? 'pointer' : 'default',
+              background: input.trim() ? `linear-gradient(135deg, ${ACCENT}, #aad900)` : 'rgba(255,255,255,0.06)',
+              color: input.trim() ? '#000' : 'rgba(255,255,255,0.3)',
+              cursor: input.trim() ? 'pointer' : 'default',
               fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center',
               transition: 'all 0.2s', fontWeight: 700,
             }}
