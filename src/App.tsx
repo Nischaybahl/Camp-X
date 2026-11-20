@@ -5,7 +5,6 @@ import { useRef, useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 
 import Home from './pages/Home';
-import Intro from './pages/Intro';
 import CampusComplaint from './pages/CampusComplaint';
 import Notes from './pages/Notes';
 import Attendance from './pages/Attendance';
@@ -48,7 +47,7 @@ function Navigation({ isLightMode, toggleTheme }: NavigationProps) {
 
   const handleLogout = () => {
     localStorage.removeItem('campx_current_user');
-    window.location.href = '/';
+    window.location.href = '/login';
   };
 
   return (
@@ -133,7 +132,6 @@ function MainApp() {
   const splineRef = useRef<Application | null>(null);
   const location = useLocation();
   const isHome = location.pathname === '/home';
-  const isIntro = location.pathname === '/';
 
   const handleLoad = (splineApp: Application) => {
     splineRef.current = splineApp;
@@ -159,8 +157,6 @@ function MainApp() {
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
 
-  const isLoggedIn = !!localStorage.getItem('campx_current_user');
-
   return (
     <div
       className="hero-section"
@@ -168,7 +164,7 @@ function MainApp() {
         backgroundImage: (isHome && !isLightMode)
           ? "url('https://static.scientificamerican.com/sciam/assets/Image/2019/spinningblackhole.gif')"
           : "none",
-        backgroundColor: isIntro ? "#000" : "var(--bg-dark)",
+        backgroundColor: "var(--bg-dark)",
         backgroundAttachment: "fixed"
       }}
     >
@@ -184,10 +180,10 @@ function MainApp() {
       )}
 
       <div className="content-wrapper">
-        {(!isIntro || isLoggedIn) && <Navigation isLightMode={isLightMode} toggleTheme={toggleTheme} />}
+        <Navigation isLightMode={isLightMode} toggleTheme={toggleTheme} />
 
         <Routes>
-          <Route path="/" element={<Intro />} />
+          <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
           <Route path="/campus-complaint" element={<ProtectedRoute><CampusComplaint /></ProtectedRoute>} />
           <Route path="/notes" element={<ProtectedRoute><Notes /></ProtectedRoute>} />

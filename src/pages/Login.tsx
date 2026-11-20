@@ -72,7 +72,7 @@ export default function Login() {
                 const data = await response.json();
                 localStorage.setItem('campx_current_user', JSON.stringify(data.user));
                 setSuccessMessage('Login successful! Welcome back.');
-                setTimeout(() => window.location.href = '/', 1000);
+                setTimeout(() => window.location.href = '/home', 1000);
                 return;
             } else {
                 const errData = await response.json().catch(() => ({}));
@@ -88,7 +88,7 @@ export default function Login() {
                 }
                 localStorage.setItem('campx_current_user', JSON.stringify(user));
                 setSuccessMessage('Login successful! Welcome.');
-                setTimeout(() => window.location.href = '/', 1000);
+                setTimeout(() => window.location.href = '/home', 1000);
                 return;
             }
         } catch {
@@ -100,7 +100,7 @@ export default function Login() {
                 const adminUser = { email: 'en23cs301682@medicaps.ac.in', name: 'Admin User', verified: true, isAdmin: true };
                 localStorage.setItem('campx_current_user', JSON.stringify(adminUser));
                 setSuccessMessage('Admin Login successful!');
-                setTimeout(() => window.location.href = '/', 1000);
+                setTimeout(() => window.location.href = '/home', 1000);
                 return;
             }
 
@@ -114,7 +114,7 @@ export default function Login() {
             }
             localStorage.setItem('campx_current_user', JSON.stringify(user));
             setSuccessMessage('Login successful!');
-            setTimeout(() => window.location.href = '/', 1000);
+            setTimeout(() => window.location.href = '/home', 1000);
         } finally {
             setIsLoading(false);
         }
@@ -180,7 +180,7 @@ export default function Login() {
 
             setSuccessMessage('Email verified! Redirecting...');
             setTimeout(() => {
-                window.location.href = '/';
+                window.location.href = '/home';
             }, 1500);
         } else {
             setError(result.message);

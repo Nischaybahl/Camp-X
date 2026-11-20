@@ -130,13 +130,20 @@ export default function CampusComplaint() {
     const [imagePreview, setImagePreview] = useState<string | null>(null);
 
     // Filters
-    const [filterActive, setFilterActive] = useState<'all'|'active'|'completed'>('all');
+    const [filterActive, setFilterActive] = useState<'all'|'mine'|'active'|'completed'>('all');
     const [filterCategory, setFilterCategory] = useState<string>('all');
     const [filterPriority, setFilterPriority] = useState<string>('all');
     const [showCopied, setShowCopied] = useState<string | null>(null);
 
     const fileRef = useRef<HTMLInputElement>(null);
     const currentUser = JSON.parse(localStorage.getItem('campx_current_user') || '{}');
+
+    // Pre-fill name on initial mount if available
+    useEffect(() => {
+        if (currentUser.name && !name) {
+            setName(currentUser.name);
+        }
+    }, []);
 
     useEffect(() => {
         fetchItems<Complaint>('complaint', 'campusComplaints').then(data => {
@@ -165,33 +172,63 @@ export default function CampusComplaint() {
         reader.readAsDataURL(file);
     };
 
+    const handleOpenForm = () => {
+        const u = JSON.parse(localStorage.getItem('campx_current_user') || '{}');
+        setName(u.name || '');
+        setShowForm(true);
+    };
+
     const resetForm = () => {
-        setName(''); setCategory('infra'); setSubType(CATEGORY_SUBTYPES['infra'][0]);
-        setDescription(''); setPriority('medium');
-        setAnonymous(false); setImagePreview(null); setEditingId(null); setShowForm(false);
+        const u = JSON.parse(localStorage.getItem('campx_current_user') || '{}');
+        setName(u.name || '');
+        setCategory('infra');
+        setSubType(CATEGORY_SUBTYPES['infra'][0]);
+        setDescription('');
+        setPriority('medium');
+        setAnonymous(false);
+        setImagePreview(null);
+        setEditingId(null);
+        setShowForm(false);
     };
 
     const handleSubmit = () => {
         if (!description.trim()) return;
-        if (!anonymous && !name.trim()) return;
+
+        const u = JSON.parse(localStorage.getItem('campx_current_user') || '{}');
+        const userEmail = (u.email || currentUser.email || '').trim().toLowerCase();
+        const fallbackName = u.name || currentUser.name || (userEmail ? userEmail.split('@')[0] : 'Student');
+        const effectiveName = anonymous ? 'Anonymous' : (name.trim() || fallbackName);
 
         if (editingId) {
             const existing = complaints.find(c => c.id === editingId);
             if (existing) {
-                const updated = { ...existing, name: anonymous ? 'Anonymous' : name, category, subType, description, priority, anonymous, imageUrl: imagePreview ?? existing.imageUrl };
+                const updated: Complaint = {
+                    ...existing,
+                    name: effectiveName,
+                    category,
+                    subType,
+                    description: description.trim(),
+                    priority,
+                    anonymous,
+                    imageUrl: imagePreview ?? existing.imageUrl
+                };
                 setComplaints(prev => prev.map(c => c.id === editingId ? updated : c));
                 updateItem('complaint', editingId, updated, 'campusComplaints', complaints);
             }
         } else {
             const newComplaint: Complaint = {
                 id: Date.now().toString(),
-                name: anonymous ? 'Anonymous' : name,
-                category, subType, description, priority, anonymous,
+                name: effectiveName,
+                category,
+                subType,
+                description: description.trim(),
+                priority,
+                anonymous,
                 imageUrl: imagePreview ?? undefined,
                 trackingId: generateTrackingId(),
                 completed: false,
                 createdAt: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
-                authorEmail: currentUser.email,
+                authorEmail: userEmail || undefined,
             };
             setComplaints(prev => [newComplaint, ...prev]);
             createItem('complaint', newComplaint, 'campusComplaints', complaints);
@@ -233,17 +270,20 @@ export default function CampusComplaint() {
         setTimeout(() => setShowCopied(null), 2000);
     };
 
-    // ── Access control: normal users see only their own complaints ──
+    const userEmail = (currentUser?.email || '').trim().toLowerCase();
     const PRIORITY_ORDER: Record<string, number> = { urgent: 0, high: 1, medium: 2, low: 3 };
 
-    const visibleComplaints = currentUser.isAdmin
-        ? [...complaints].sort((a, b) =>
-            (PRIORITY_ORDER[a.priority ?? 'medium'] ?? 2) - (PRIORITY_ORDER[b.priority ?? 'medium'] ?? 2)
-          )
-        : complaints.filter(c => c.authorEmail === currentUser.email);
+    // Sort by priority for all users
+    const visibleComplaints = [...complaints].sort((a, b) =>
+        (PRIORITY_ORDER[a.priority ?? 'medium'] ?? 2) - (PRIORITY_ORDER[b.priority ?? 'medium'] ?? 2)
+    );
 
     // Filtering applied on top of visibility
     const filtered = visibleComplaints.filter(c => {
+        const cEmail = (c.authorEmail || '').trim().toLowerCase();
+        const isOwner = Boolean(userEmail && cEmail === userEmail);
+
+        if (filterActive === 'mine' && !isOwner) return false;
         if (filterActive === 'active' && c.completed) return false;
         if (filterActive === 'completed' && !c.completed) return false;
         if (filterCategory !== 'all' && c.category !== filterCategory) return false;
@@ -266,21 +306,26 @@ export default function CampusComplaint() {
                 display: 'flex', gap: '1rem', justifyContent: 'center', alignItems: 'center',
                 flexWrap: 'wrap', marginBottom: '1.5rem', maxWidth: '900px', margin: '0 auto 1.5rem auto',
             }}>
-                <button className="btn-accent" onClick={() => { resetForm(); setShowForm(true); }}
+                <button className="btn-accent" onClick={handleOpenForm}
                     style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.8rem 1.8rem' }}>
                     <Plus size={18} /> Add Complaint
                 </button>
 
-                {/* Active/Completed filter pills */}
-                <div style={{ display: 'flex', gap: '0.4rem', background: 'var(--glass)', borderRadius: '30px', padding: '0.3rem', border: '1px solid var(--glass-border)' }}>
-                    {(['all', 'active', 'completed'] as const).map(f => (
-                        <button key={f} onClick={() => setFilterActive(f)} style={{
+                {/* Scope & Active/Completed filter pills */}
+                <div style={{ display: 'flex', gap: '0.4rem', background: 'var(--glass)', borderRadius: '30px', padding: '0.3rem', border: '1px solid var(--glass-border)', flexWrap: 'wrap' }}>
+                    {[
+                        { key: 'all',       label: 'All Complaints' },
+                        { key: 'mine',      label: 'My Complaints' },
+                        { key: 'active',    label: 'Active' },
+                        { key: 'completed', label: 'Resolved' },
+                    ].map(f => (
+                        <button key={f.key} onClick={() => setFilterActive(f.key as 'all'|'mine'|'active'|'completed')} style={{
                             padding: '0.45rem 1rem', borderRadius: '20px', border: 'none', cursor: 'pointer',
-                            background: filterActive === f ? 'var(--accent)' : 'transparent',
-                            color: filterActive === f ? '#000' : 'var(--secondary)',
-                            fontWeight: 600, fontSize: '0.8rem', transition: 'all 0.3s', textTransform: 'capitalize',
+                            background: filterActive === f.key ? 'var(--accent)' : 'transparent',
+                            color: filterActive === f.key ? '#000' : 'var(--secondary)',
+                            fontWeight: 600, fontSize: '0.8rem', transition: 'all 0.3s',
                             whiteSpace: 'nowrap',
-                        }}>{f.charAt(0).toUpperCase() + f.slice(1)}</button>
+                        }}>{f.label}</button>
                     ))}
                 </div>
             </div>
@@ -467,8 +512,8 @@ export default function CampusComplaint() {
                             {/* Submit */}
                             <button className="btn-accent" onClick={handleSubmit} style={{
                                 width: '100%', justifyContent: 'center', padding: '1rem', marginTop: '0.4rem',
-                                opacity: (!description.trim() || (!anonymous && !name.trim())) ? 0.5 : 1,
-                                cursor: (!description.trim() || (!anonymous && !name.trim())) ? 'not-allowed' : 'pointer',
+                                opacity: !description.trim() ? 0.5 : 1,
+                                cursor: !description.trim() ? 'not-allowed' : 'pointer',
                             }}>
                                 {editingId ? 'Update Complaint' : 'Submit Complaint'}
                             </button>
@@ -483,9 +528,10 @@ export default function CampusComplaint() {
                 maxWidth: '900px', margin: '0 auto 2rem auto',
             }}>
                 {[
-                    { label: 'Total',     val: complaints.length,                              color: 'var(--accent)' },
-                    { label: 'Active',    val: complaints.filter(c => !c.completed).length,     color: '#ffd43b' },
-                    { label: 'Resolved',  val: complaints.filter(c => c.completed).length,      color: '#51cf66' },
+                    { label: 'Total',         val: complaints.length,                                                                                  color: 'var(--accent)' },
+                    { label: 'My Complaints', val: complaints.filter(c => userEmail && (c.authorEmail || '').trim().toLowerCase() === userEmail).length, color: '#38bdf8' },
+                    { label: 'Active',        val: complaints.filter(c => !c.completed).length,                                                         color: '#ffd43b' },
+                    { label: 'Resolved',      val: complaints.filter(c => c.completed).length,                                                          color: '#51cf66' },
                 ].map(stat => (
                     <div key={stat.label} style={{
                         ...glassCard, padding: '1rem 1.5rem', display: 'flex', flexDirection: 'column',
@@ -520,7 +566,7 @@ export default function CampusComplaint() {
                     filtered.map(c => {
                         const catMeta = getCategoryMeta(c.category);
                         const priMeta = getPriorityMeta(c.priority ?? 'medium');
-                        const isOwner = currentUser.email && c.authorEmail === currentUser.email;
+                        const isOwner = Boolean(userEmail && (c.authorEmail || '').trim().toLowerCase() === userEmail);
 
                         return (
                             <div key={c.id} style={{
@@ -541,6 +587,12 @@ export default function CampusComplaint() {
                                                 <Shield size={14} color="var(--accent)" aria-label="Anonymous" />
                                             )}
                                             <h3 style={{ fontSize: '1.05rem', color: 'var(--primary)', margin: 0 }}>{c.name}</h3>
+                                            {isOwner && (
+                                                <span style={{
+                                                    padding: '0.15rem 0.55rem', borderRadius: '8px', fontSize: '0.68rem',
+                                                    background: 'rgba(204,255,0,0.18)', color: 'var(--accent)', fontWeight: 700,
+                                                }}>You</span>
+                                            )}
                                             <span style={{
                                                 padding: '0.2rem 0.65rem', borderRadius: '10px', fontSize: '0.72rem', fontWeight: 700,
                                                 background: catMeta.color + '22', color: catMeta.color,
